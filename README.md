@@ -1,7 +1,7 @@
 # test-FTC code
 Work with Codex (ChatGPT) to write code for FTC Decode competition
 
-# Control Scheme Diagram
+# Control Scheme Diagram (LotusTeleOPV33.java)
 
 ```
 GAMEPAD 1 (Driver)                          GAMEPAD 2 (Operator)
