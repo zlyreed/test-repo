@@ -32,7 +32,7 @@ public class LotusTeleOpAimPoseRPM extends LinearOpMode {
     // =========================
     // Constants (tune)
     // =========================
-    private static final double TICKS_PER_REV = 537.7;       // change to your motor spec!
+    private static final double TICKS_PER_REV = 28;       // change to your motor spec!
     private static final int BLUE_GOAL_TAG_ID = 20;          // change if needed
     private static final int RED_GOAL_TAG_ID  = 24;          // change if needed
 
