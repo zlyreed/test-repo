@@ -47,3 +47,19 @@ public void runOpMode() {
         telemetry.update();
     }
 }
+
+
+// to test TICKS_PER_REV
+//Results interpretation
+//If it shows ~28 → use 28
+//If it shows ~112 → use 112
+//If it shows ~537 → gearbox is involved (old value)
+//This test is bulletproof and worth doing once.
+    
+mFW.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+mFW.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+// Slowly turn flywheel by hand exactly ONE revolution
+// then read:
+telemetry.addData("Encoder position", mFW.getCurrentPosition());
+
