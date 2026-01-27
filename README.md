@@ -23,8 +23,12 @@ Right Bumper
                                               (toggle on/off)
 ```
 # Useful links
+## Limelight:
+- [Limelight 3A Documentation](https://docs.limelightvision.io/docs/docs-limelight/getting-started/limelight-3a)
 - [Limelight AprilTag Aiming Demo](https://www.youtube.com/watch?v=-EfOzB_A00Q)
 - [How to Measure Distance with April Tags (Limelight 3A)](https://www.youtube.com/watch?v=Ap1lBywv00M)
+
+## Others:  
 - [Template with the help of Claude Code to setup a team webpage hosted on GitHub](https://github.com/braineatingmachines/pitcrew)
   - [Example webpage--pitcrew](http://braineatingmachines.com/pitcrew/)
 
