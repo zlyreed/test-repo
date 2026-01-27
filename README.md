@@ -23,6 +23,15 @@ Right Bumper
                                               (toggle on/off)
 ```
 # Useful links
+## Goal
+- [How To Shoot from Anywhere on the Field in Java FTC- Gyrobotic Droids 23435:graphing shooter method](https://www.youtube.com/watch?v=Mr2cLjyajnM)
+- [How To Shoot from Anywhere with Velocity Compensation! Decode FTC](https://www.youtube.com/watch?v=oSVNTER_37A)
+  - [Document that explains the theory behind our calculations](https://drive.google.com/file/d/1sEjsOUD9F9Mvefk5B-aR7Z1-Q-XwhLb8/view)
+  
+## PID control or PIDF control
+- [PID control](https://deep-blue-training.readthedocs.io/en/latest/section-7/feedback-control/)
+- [This Trick Makes Your Flywheel 30x Faster (PIDF Tuning)](https://www.youtube.com/watch?v=aPNCpZzCTKg)
+  
 ## Limelight:
 - [Limelight 3A Documentation](https://docs.limelightvision.io/docs/docs-limelight/getting-started/limelight-3a)
 - [Limelight Coding-MegaTag2 with IMU](https://docs.limelightvision.io/docs/docs-limelight/apis/ftc-programming)
