@@ -26,6 +26,6 @@ Right Bumper
 - [Limelight AprilTag Aiming Demo](https://www.youtube.com/watch?v=-EfOzB_A00Q)
 - [How to Measure Distance with April Tags (Limelight 3A)](https://www.youtube.com/watch?v=Ap1lBywv00M)
 - [Template with the help of Claude Code to setup a team webpage hosted on GitHub](https://github.com/braineatingmachines/pitcrew)
-- - [Example webpage](http://braineatingmachines.com/pitcrew/)
+  - [Example webpage--pitcrew](http://braineatingmachines.com/pitcrew/)
 
 
