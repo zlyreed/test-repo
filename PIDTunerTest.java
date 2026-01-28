@@ -44,8 +44,8 @@ public class PIDFTunerTest extends OpMode {
         //update telemetry
 
         //getting maximum tick per revolution
-        flywheelMotor.setPower(1.0);
-        maxTicksPerSec = flywheelMotor.getVelocity();
+    //    flywheelMotor.setPower(1.0);
+    //    maxTicksPerSec = flywheelMotor.getVelocity();
 
         if(gamepad1.yWasPressed()) {
             if (curTargetVelocity == highVelocity) {
@@ -81,7 +81,7 @@ public class PIDFTunerTest extends OpMode {
         double curVelocity = flywheelMotor.getVelocity();
         double error = curTargetVelocity - curVelocity;
 
-        telemetry.addData("Maximum Ticks Per Revolution", maxTicksPerSec);
+        // telemetry.addData("Maximum Ticks Per Revolution", maxTicksPerSec);
         telemetry.addData("Target Velocity", curTargetVelocity);
         telemetry.addData("Current Velocity", "%.2f", curVelocity);
         telemetry.addData("Error", "%.2f", error);
