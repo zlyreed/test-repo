@@ -17,8 +17,9 @@ import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 
 import java.util.List;
 
-@TeleOp(name = "Lotus TeleOp: Aim+Pose+RPM", group = "Robot")
-public class LotusTeleOpAimPoseRPM extends LinearOpMode {
+// worked for the Lotus Robot
+@TeleOp(name = "TeleOpAimPoseRPM", group = "Robot")
+public class TeleOpAimPoseRPM extends LinearOpMode {
 
     // =========================
     // Hardware
@@ -182,7 +183,7 @@ public class LotusTeleOpAimPoseRPM extends LinearOpMode {
 
         // Normalize
         double max = Math.max(Math.max(Math.abs(pFL), Math.abs(pFR)),
-                              Math.max(Math.abs(pBL), Math.abs(pBR)));
+                Math.max(Math.abs(pBL), Math.abs(pBR)));
         if (max > 1.0) { pFL /= max; pFR /= max; pBL /= max; pBR /= max; }
 
         mFL.setPower(pFL);
