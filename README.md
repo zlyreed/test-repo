@@ -1,5 +1,6 @@
-# test-FTC code
-Work with Codex (ChatGPT) to write code for FTC Decode competition
+# FTC Decode (2025-2026)
+- Work with Codex (ChatGPT) to write code for FTC Decode competition
+- [This offical repository contains the public FTC SDK for the DECODE (2025-2026) competition season](https://github.com/FIRST-Tech-Challenge/FtcRobotController)
 
 # Control Scheme Diagram (LotusTeleOPV33.java)
 
