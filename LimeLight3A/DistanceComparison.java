@@ -300,3 +300,123 @@ public class DecodeDistanceAndLocalizationDemo extends OpMode {
         }
     }
 }
+
+-------------------------------
+package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.IMU;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+
+import com.limelight.Limelight3A;
+import com.limelight.LLResult;
+import com.limelight.results.LLTargetFiducial;
+
+import com.gobilda.pinpoint.GoBildaPinpointDriver;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@TeleOp(name = "Decode: Pinpoint + Limelight Distance + Localization Demo")
+public class DecodeDistanceAndLocalizationDemo extends OpMode {
+
+    // ---------------------- Hardware ----------------------
+    private GoBildaPinpointDriver pinpoint;
+    private Limelight3A limelight;
+    private IMU imu;
+
+    // ---------------------- Settings ----------------------
+    // Choose which “goal tags” you care about (example IDs — change to your Decode IDs)
+    private static final int[] GOAL_TAG_IDS = new int[]{20, 24};
+
+    // Tag field coordinates (meters). Must match the same coordinate system used by Pinpoint + Limelight botpose.
+    private static final Map<Integer, Pose2D> DECODE_TAG_POSES_METERS = new HashMap<>();
+    static {
+        // TODO: Replace with the official Decode tag coordinates (meters).
+        // Example placeholders (DO NOT USE AS REAL):
+        DECODE_TAG_POSES_METERS.put(20, new Pose2D(1.000, 2.000, 0.0));
+        DECODE_TAG_POSES_METERS.put(24, new Pose2D(4.000, 2.000, 0.0));
+    }
+
+    // ---------------------- Method D (backup): rough trig using ty + heights ----------------------
+    // (This is similar to Method E, but kept from prior version. You can remove if you don't want two.)
+    private static final double CAMERA_HEIGHT_M = 0.30;     // measure lens height
+    private static final double TAG_HEIGHT_M    = 0.15;     // tag center height (example only)
+    private static final double CAMERA_PITCH_DEG = 0.0;     // camera pitch (deg)
+
+    // ---------------------- Method E: Fixed-angle camera distance (ty trig) ----------------------
+    // d = (h2 - h1) / tan(a1 + a2)
+    // a1 = camera mount pitch angle (deg)
+    // a2 = Limelight ty (deg)
+    // h1 = lens height above floor
+    // h2 = target center height above floor
+    private static final double LL_MOUNT_PITCH_DEG      = 25.0; // TODO: measure camera pitch up from horizontal
+    private static final double LL_LENS_HEIGHT_M        = 0.30; // TODO: measure lens height above floor
+    private static final double GOAL_CENTER_HEIGHT_M    = 0.60; // TODO: tag/goal center height above floor (meters)
+
+    @Override
+    public void init() {
+        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+        limelight = hardwareMap.get(Limelight3A.class, "limelight");
+        imu = hardwareMap.get(IMU.class, "imu");
+
+        configurePinpoint(pinpoint);
+
+        limelight.pipelineSwitch(0); // TODO: set to your AprilTag pipeline index
+        limelight.start();
+
+        telemetry.addLine("Initialized. Press Play.");
+    }
+
+    @Override
+    public void loop() {
+        // ------------------- Read IMU yaw -------------------
+        double imuYawDeg = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
+
+        // ------------------- Update Pinpoint -----------------
+        pinpoint.update();
+        Pose2D posePinpoint = getPoseFromPinpoint(pinpoint);
+
+        // ------------------- Read Limelight result ------------
+        LLResult result = limelight.getLatestResult();
+        boolean hasLL = (result != null) && result.isValid();
+
+        // (1) Robot pose from Limelight (field coordinate system)
+        Pose2D poseLL = null;
+        if (hasLL) {
+            // Some APIs provide botpose_MT2(); others use getBotpose() etc.
+            // Expected array: [x,y,z,roll,pitch,yaw] with meters + degrees.
+            double[] botpose = result.getBotpose_MT2(); // adjust if needed
+            if (botpose != null && botpose.length >= 6) {
+                double x = botpose[0];
+                double y = botpose[1];
+                double yawDeg = botpose[5];
+                poseLL = new Pose2D(x, y, Math.toRadians(yawDeg));
+            }
+        }
+
+        // (2) Direct camera->tag measurement from Limelight fiducial target
+        TagMeasurement bestGoalMeas = null;
+        if (hasLL) {
+            bestGoalMeas = findBestGoalTagMeasurement(result, GOAL_TAG_IDS);
+        }
+
+        // ------------------- DISTANCE METHODS -------------------
+        // Method A: camera -> tag 3D distance (from LL fiducial camera-space transform)
+        Double distCamToTag_m = null;
+        Integer seenTagId = null;
+        if (bestGoalMeas != null) {
+            distCamToTag_m = bestGoalMeas.distance3D_m;
+            seenTagId = bestGoalMeas.tagId;
+        }
+
+        // Method B: robot -> tag planar distance using Limelight robot pose + known tag pose
+        Double distRobotToTag_fromLLPose_m = null;
+        if (poseLL != null && seenTagId != null && DECODE_TAG_POSES_METERS.containsKey(seenTagId)) {
+            Pose2D tagPose = DECODE_TAG_POSES_METERS.get(seenTagId);
+            distRobotToTag_fromLLPose_m = planarDistanceMeters(poseLL, tagPose);
+        }
+
+        // Method C: robot -> tag planar distance using Pinpoint pose + known tag pose
+        Double distRobotToTag_fromPinpoint_m = null
