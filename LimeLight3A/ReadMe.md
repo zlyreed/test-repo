@@ -21,6 +21,6 @@ For Limelight3A:
 - Double check the locations of the Blue and Red targets:
   - Tag 20 (Blue): x=-1.482, y=-1.413, z=0.749 (in meters) / x=-58.35, y=-55.63, z=29.49 (in inches)
   - Tag 24 (Red):  x=-1.482, y= 1.413, z=0.749 (in meters) /x=-58.35, y=55.63, z=29.49 (in inches);
-  - ![FTC Decode Field Map](images/decode-field_CS.png)
+  
 - LL_LENS_HEIGHT_IN = 10.5;     // camera lens center above tile (need to measure)
 - In "applyFlywheelControl()", should we move "double currentRPM = mFW.getVelocity() * 60.0 / TICKS_PER_REV;" after "mFW.setVelocity(targetTicksPerSec)"? 
