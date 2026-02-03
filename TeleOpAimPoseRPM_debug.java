@@ -237,10 +237,9 @@ public class TeleOpAimPoseRPM extends LinearOpMode {
         telemetry.addData("IMU Yaw", "%.1f°", yawDeg);
     }
 
-    /**
-     * Returns tx (horizontal angle) to the chosen goal tag, or null if not detected.
-     * Uses FiducialResults list from LLResult. :contentReference[oaicite:1]{index=1}
-     */
+    // Returns tx (horizontal angle) to the chosen goal tag, or null if not detected.
+    // Uses FiducialResults list from LLResult. :contentReference[oaicite:1]{index=1}
+     
     private Double getTxToGoalTag(int desiredId) {
         LLResult result = limelight.getLatestResult();
         if (result == null || !result.isValid()) return null;
@@ -377,10 +376,9 @@ public class TeleOpAimPoseRPM extends LinearOpMode {
     //================================================
     // Limelight diagnostics for DECODE goal AprilTags (20 / 24):
     // Outputs:
-    // - Pipeline index/type
-    // - Robot pose from MT2 and MT1 (x,y,z); distances from robot to goal (Blue or Red); TagCount and AvgDist
-    // - Per-tag tx / ty (in degrees)
-    // - Trig-based distance (2D) to selected goal tag (20 or 24)-- using ty angle
+    // 1) Robot pose from MT2 and MT1 (x,y,z); distances from robot to goal (Blue or Red); TagCount and AvgDist
+    // 2) Per-tag tx / ty (in degrees)
+    // 3) Trig-based distance (2D) to selected goal tag (20 or 24)-- using ty angle
     //================================================
 
    private void updateLimelightDiagnosticsTelemetry(int goalTagId) {
@@ -393,7 +391,7 @@ public class TeleOpAimPoseRPM extends LinearOpMode {
     limelight.updateRobotOrientation(yawDeg);
 
     // ---------------------------------------------------------
-    // 1) Get latest Limelight result
+    //  Get latest Limelight result
     // ---------------------------------------------------------
     LLResult result = limelight.getLatestResult();
     if (result == null || !result.isValid()) {
@@ -402,17 +400,7 @@ public class TeleOpAimPoseRPM extends LinearOpMode {
     }
 
     // ---------------------------------------------------------
-    // 2) Pipeline info (sanity check)
-    // ---------------------------------------------------------
-    telemetry.addData(
-            "LL Pipeline",
-            "Index=%d Type=%s",
-            result.getPipelineIndex(),
-            result.getPipelineType()
-    );
-
-    // ---------------------------------------------------------
-    // 3) Robot pose estimates (field frame) and distances from robot to Goal (Blue or Red)
+    // 1) Robot pose estimates (field frame) and distances from robot to Goal (Blue or Red)
     // ---------------------------------------------------------
     // Helper: choose goal tag position (meters) based on goalTagId
     double goalX_m, goalY_m, goalZ_m;
@@ -479,7 +467,7 @@ public class TeleOpAimPoseRPM extends LinearOpMode {
     );
 
     // ---------------------------------------------------------
-    // 4) Per-tag measurements (tx / ty in degree)
+    // 2) Per-tag measurements (tx / ty in degree)
     // ---------------------------------------------------------
     List<LLResultTypes.FiducialResult> fiducials =
             result.getFiducialResults();
@@ -509,7 +497,7 @@ public class TeleOpAimPoseRPM extends LinearOpMode {
     }
 
     // ---------------------------------------------------------
-    // 5) Trig-based (2D) distance to selected goal tag (20 or 24)
+    // 3) Trig-based (2D) distance to selected goal tag (20 or 24)
     // ---------------------------------------------------------
     if (tyDegForGoal == null) {
         telemetry.addData(
