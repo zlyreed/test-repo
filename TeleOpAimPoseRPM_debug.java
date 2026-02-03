@@ -116,7 +116,11 @@ public class TeleOpAimPoseRPM extends LinearOpMode {
           
             // ************* Debug *****************
             LLResult result = limelight.getLatestResult();
-            debugPrintAllTags(result);            
+            debugPrintAllTags(result);
+
+            if (gamepad1.a) {
+               updateLimelightDiagnosticsTelemetry(goalTagId);
+            }
           
             // 3) Flywheel RPM tuning
             updateFlywheelRPMControls();
