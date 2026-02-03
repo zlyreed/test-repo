@@ -1,6 +1,8 @@
 # FTC Decode (2025-2026)
-- Work with Codex (ChatGPT) to write code for FTC Decode competition
+
 - [This offical repository contains the public FTC SDK for the DECODE (2025-2026) competition season](https://github.com/FIRST-Tech-Challenge/FtcRobotController)
+- [Game specific resources (official)](https://ftc-docs.firstinspires.org/en/latest/game_specific_resources/field_coordinate_system/field-coordinate-system.html)
+   - ![FTC Decode Field Map](images/decode-field_CS.png)
 
 # Control Scheme Diagram (LotusTeleOPV33.java)
 
