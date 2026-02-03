@@ -6,6 +6,8 @@ For Limelight3A:
    - 1)using ty angle, limelight height and AprilTag height;
    - 2)Using the Apriltag area, [see example](https://www.youtube.com/watch?v=Ap1lBywv00M)
  
+- [April Tag Guideline](https://ftc-docs-cdn.ftclive.org/booklets/en/april_tags.pdf?utm_source=chatgpt.com)
+ 
 ## Limelight (need to modify):
 - [Limelight 3A Documentation](https://docs.limelightvision.io/docs/docs-limelight/getting-started/limelight-3a)
 - [Limelight Coding-MegaTag2 with IMU](https://docs.limelightvision.io/docs/docs-limelight/apis/ftc-programming)
