@@ -14,3 +14,9 @@ For Limelight3A:
 - [Distance Estimation and Angle Alignment](https://deep-blue-training.readthedocs.io/en/latest/section-7/limelight/)
 - [Limelight AprilTag Aiming Demo](https://www.youtube.com/watch?v=-EfOzB_A00Q)
 - [How to Measure Distance with April Tags (Limelight 3A)](https://www.youtube.com/watch?v=Ap1lBywv00M)
+
+
+### To-do List (2/4/2026)
+- check Limelight setup (Limelight Hardware Manager and pipeline number)
+- LL_LENS_HEIGHT_IN = 10.5;     // camera lens center above tile (need to measure)
+- In "applyFlywheelControl()", should we move "double currentRPM = mFW.getVelocity() * 60.0 / TICKS_PER_REV;" after "mFW.setVelocity(targetTicksPerSec)"? 
