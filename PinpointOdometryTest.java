@@ -44,8 +44,8 @@ public class PinpointOdometryTest_GoBildaDriver extends LinearOpMode {
     // X pod = "forward pod" plugged into X port.
     // xOffset = how far LEFT(+)/RIGHT(-) the X pod is from your tracking point (usually robot center). :contentReference[oaicite:5]{index=5}
     // yOffset = how far FORWARD(+)/BACK(-) the Y pod is from your tracking point. :contentReference[oaicite:6]{index=6}
-    private static final double X_POD_XOFFSET_MM = 0.0;   // left +, right -
-    private static final double Y_POD_YOFFSET_MM = 0.0;   // forward +, back -
+    private static final double X_POD_XOFFSET_MM = 0.0;   // TODO: left +, right -
+    private static final double Y_POD_YOFFSET_MM = 0.0;   // TODO: forward +, back -
 
     // Encoder directions: X should increase when robot moves forward; Y should increase when robot moves left. :contentReference[oaicite:7]{index=7}
     private static final GoBildaPinpointDriver.EncoderDirection X_DIR =
