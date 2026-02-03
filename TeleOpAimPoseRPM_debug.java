@@ -50,6 +50,19 @@ public class TeleOpAimPoseRPM extends LinearOpMode {
     private static final double RPM_MAX = 6000;
 
     // =========================
+    // DECODE Goal AprilTag Geometry
+    // =========================
+
+   // Center height of Blue (20) / Red (24) goal AprilTags above TILE surface
+   // 38.75 in (panel top) - 4.5 in (tag center offset)
+    private static final double GOAL_TAG_CENTER_HEIGHT_IN = 34.25;
+
+   // Measure these on YOUR robot
+   private static final double LL_LENS_HEIGHT_IN = 10.5;     // camera lens center above tile??
+   private static final double LL_MOUNT_ANGLE_DEG = 0;    // camera pitch up from horizontal
+
+
+    // =========================
     // State
     // =========================
     private int goalTagId = BLUE_GOAL_TAG_ID;                // toggle between blue/red
@@ -311,9 +324,7 @@ public class TeleOpAimPoseRPM extends LinearOpMode {
         return;
     }
 
-    // -------------------------
-    // Pipeline debug
-    // -------------------------
+    // *******Pipeline debug**********
     telemetry.addData(
             "LL Pipeline",
             "Index=%d  Type=%s",
@@ -321,9 +332,7 @@ public class TeleOpAimPoseRPM extends LinearOpMode {
             result.getPipelineType()
     );
 
-    // -------------------------
-    // Fiducial (AprilTag) debug
-    // -------------------------
+    // *********Fiducial (AprilTag) debug**********
     List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
 
     if (fiducials == null || fiducials.isEmpty()) {
@@ -341,6 +350,147 @@ public class TeleOpAimPoseRPM extends LinearOpMode {
     telemetry.addData("LL Tags", sb.toString());
 }
 
+
+
+    //================================================
+    // Limelight diagnostics for DECODE goal AprilTags (20 / 24):
+    // Outputs:
+    // - Pipeline index/type
+    // - Robot pose from MT2 and MT1 (x,y,z)
+    // - TagCount and AvgDist
+    // - Per-tag tx / ty
+    // - Trig-based distance to selected goal tag (20 or 24)
+    //================================================
+
+private void updateLimelightDiagnosticsTelemetry(int goalTagId) {
+
+    // ---------------------------------------------------------
+    // 0) Feed robot yaw to Limelight (required for MegaTag2)
+    // ---------------------------------------------------------
+    double yawDeg = imu.getRobotYawPitchRollAngles()
+                       .getYaw(AngleUnit.DEGREES);
+    limelight.updateRobotOrientation(yawDeg);
+
+    // ---------------------------------------------------------
+    // 1) Get latest Limelight result
+    // ---------------------------------------------------------
+    LLResult result = limelight.getLatestResult();
+    if (result == null || !result.isValid()) {
+        telemetry.addData("LL", "No valid result");
+        return;
+    }
+
+    // ---------------------------------------------------------
+    // 2) Pipeline info (sanity check)
+    // ---------------------------------------------------------
+    telemetry.addData(
+            "LL Pipeline",
+            "Index=%d Type=%s",
+            result.getPipelineIndex(),
+            result.getPipelineType()
+    );
+
+    // ---------------------------------------------------------
+    // 3) Robot pose estimates (field frame)
+    // ---------------------------------------------------------
+    Pose3D mt2 = result.getBotpose_MT2();
+    telemetry.addData(
+            "LL MT2 Pose",
+            (mt2 != null)
+                    ? String.format("x=%.2f y=%.2f z=%.2f",
+                        mt2.getPosition().x,
+                        mt2.getPosition().y,
+                        mt2.getPosition().z)
+                    : "null"
+    );
+
+    Pose3D mt1 = result.getBotpose();
+    telemetry.addData(
+            "LL MT1 Pose",
+            (mt1 != null)
+                    ? String.format("x=%.2f y=%.2f z=%.2f",
+                        mt1.getPosition().x,
+                        mt1.getPosition().y,
+                        mt1.getPosition().z)
+                    : "null"
+    );
+
+    telemetry.addData(
+            "LL TagCount/AvgDist",
+            "%d / %.2f m",
+            result.getBotposeTagCount(),
+            result.getBotposeAvgDist()
+    );
+
+    // ---------------------------------------------------------
+    // 4) Per-tag measurements (tx / ty)
+    // ---------------------------------------------------------
+    List<LLResultTypes.FiducialResult> fiducials =
+            result.getFiducialResults();
+
+    if (fiducials == null || fiducials.isEmpty()) {
+        telemetry.addData("LL Fiducials", "none");
+        telemetry.addData("TrigDist", "n/a (no tags)");
+        return;
+    }
+
+    Double tyDegForGoal = null;
+
+    for (LLResultTypes.FiducialResult f : fiducials) {
+        int id = f.getFiducialId();
+        double tx = f.getTargetXDegrees();
+        double ty = f.getTargetYDegrees();
+
+        telemetry.addData(
+                "Tag " + id,
+                "tx=%.1f° ty=%.1f°",
+                tx, ty
+        );
+
+        if (id == goalTagId) {
+            tyDegForGoal = ty;
+        }
+    }
+
+    // ---------------------------------------------------------
+    // 5) Trig-based distance to selected goal tag (20 or 24)
+    // ---------------------------------------------------------
+    if (tyDegForGoal == null) {
+        telemetry.addData(
+                "TrigDist",
+                "n/a (goal tag %d not in view)",
+                goalTagId
+        );
+        return;
+    }
+
+    // angle from floor to goal center
+    double angleToGoalDeg = LL_MOUNT_ANGLE_DEG + tyDegForGoal;
+    double angleToGoalRad = Math.toRadians(angleToGoalDeg);
+
+    double heightDiffIn = GOAL_TAG_CENTER_HEIGHT_IN - LL_LENS_HEIGHT_IN;
+
+    // Guard against tan(0) or near-0
+    if (Math.abs(Math.tan(angleToGoalRad)) < 1e-6) {
+        telemetry.addData("TrigDist", "invalid (angle too small)");
+        return;
+    }
+
+    double distanceIn =
+            heightDiffIn / Math.tan(angleToGoalRad);
+
+    telemetry.addData(
+            "TrigDist → Goal %d",
+            "%.1f in  (angle=%.1f°)",
+            goalTagId,
+            distanceIn,
+            angleToGoalDeg
+    );
+}
+
+
+
+    
 
     // =========================================================
     // Utility
