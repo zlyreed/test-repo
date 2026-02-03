@@ -1,3 +1,22 @@
+
+// This OpMode will:
+// Configure Pinpoint every time (required because settings reset on power cycle)
+// Let you press buttons to reset pose + IMU and recalibrate IMU
+// Print X, Y, heading (both normalized and unnormalized)
+// Show encoder raw counts and device status to catch wiring issues
+
+//Before running: In the Robot Controller configuration, add the Pinpoint as an I2C device and name it (example: "pinpoint").
+/*On the Driver Station phone / Driver Hub
+    This is the most common way teams do it.
+   1) Open the FTC Driver Station app
+   2) Tap the three dots (⋮) in the upper-right corner
+   3) Tap Configure Robot
+   4) Tap New (or Edit an existing config)
+   5) Choose REV Control Hub (or Expansion Hub if applicable)
+    
+    You are now in the Robot Controller configuration screen.*/
+
+
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
