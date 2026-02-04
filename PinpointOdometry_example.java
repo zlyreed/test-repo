@@ -56,10 +56,8 @@ public class PinpointReadPose extends LinearOpMode {
 
         // Offsets from robot center (mm)
         // Replace with your measured values
-        pinpoint.setOffsets(
-                0.0,  // X pod left(+)/right(-)
-                0.0   // Y pod forward(+)/back(-)
-        );
+        pinpoint.setOffsets(0.0,0.0);               // (X pod left(+)/right(-), Y pod forward(+)/back(-))
+        
 
         telemetry.addLine("Pinpoint initialized.");
         telemetry.addLine("Keep robot still during INIT.");
