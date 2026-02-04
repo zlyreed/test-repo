@@ -55,7 +55,7 @@ public class TeleOpAimPoseRPM extends LinearOpMode {
 
    // Center height of Blue (20) / Red (24) goal AprilTags above TILE surface
    // 38.75 in (panel top) - 4.5 in (tag center offset)
-    private static final double GOAL_TAG_CENTER_HEIGHT_IN = 34.25;
+    private static final double GOAL_TAG_CENTER_HEIGHT_IN = 34.25;  // Check the Tag height (in)??
 
    // Measure these on YOUR robot
    private static final double LL_LENS_HEIGHT_IN = 10.5;     // camera lens center above tile??
@@ -484,11 +484,12 @@ public class TeleOpAimPoseRPM extends LinearOpMode {
         int id = f.getFiducialId();
         double tx = f.getTargetXDegrees();
         double ty = f.getTargetYDegrees();
+        double area = f.getTargetArea();   // ONLY if this method exists-- test??
 
         telemetry.addData(
                 "Tag " + id,
-                "tx=%.1f° ty=%.1f°",
-                tx, ty
+                "tx=%.1f° ty=%.1f° area=%.2f",
+                tx, ty, area
         );
 
         if (id == goalTagId) {
