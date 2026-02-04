@@ -1,4 +1,5 @@
-/*What this code does:
+/* Check if this is Pinpoint Odometry (SKU:3110-0002-0001 )
+What this code does:
 - Initializes the Pinpoint
 - Configures pod type, directions, and offsets
 - Resets pose at start
