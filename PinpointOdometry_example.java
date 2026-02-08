@@ -25,8 +25,8 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 
-@TeleOp(name = "Pinpoint Read X Y Heading", group = "Debug")
-public class PinpointReadPose extends LinearOpMode {
+@TeleOp(name = "PinpointOdometry_example", group = "Robot")
+public class PinpointOdometry_example extends LinearOpMode {
 
     private static final String PINPOINT_NAME = "pinpoint";
 
@@ -35,7 +35,7 @@ public class PinpointReadPose extends LinearOpMode {
 
         // Initialize Pinpoint
         GoBildaPinpointDriver pinpoint =
-                new GoBildaPinpointDriver(hardwareMap, PINPOINT_NAME);
+                hardwareMap.get(GoBildaPinpointDriver.class, PINPOINT_NAME);
 
         // -----------------------------
         // REQUIRED CONFIGURATION
@@ -56,9 +56,9 @@ public class PinpointReadPose extends LinearOpMode {
 
         // Offsets from robot center (mm)
         // Replace with your measured values
-        pinpoint.setOffsets(0.0,0.0);               // (X pod left(+)/right(-), Y pod forward(+)/back(-))
-        
-
+        pinpoint.setOffsets(-114.3, 38.1, DistanceUnit.MM);
+// X pod left(+)/right(-)
+// Y pod forward(+)/back(-)
         telemetry.addLine("Pinpoint initialized.");
         telemetry.addLine("Keep robot still during INIT.");
         telemetry.update();
