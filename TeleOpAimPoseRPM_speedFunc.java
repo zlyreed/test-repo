@@ -192,10 +192,26 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
         double turnAssist = 0.0;
         boolean aimAssistEnabled = gamepad1.left_trigger > 0.2;
 
+        LLResult result = limelight.getLatestResult();
+
         if (aimAssistEnabled) {
-            Double txDeg = getTxToGoalTag(goalTagId);
+            Double txDeg = getTxToGoalTag(goalTagId, result);
+            
+            // ** If additional adjustment neeed
+            //Double tyDeg = getTyToGoalTag(goalTagId, result);
+            //Double trigDistIn = trigDistanceToGoalInchesFromTy(tyDeg);
+            
             if (txDeg != null) {
-                turnAssist = clamp(txDeg * AIM_KP, -AIM_MAX_TURN, AIM_MAX_TURN);
+                
+                /* If additional adjustment neeed
+                // txSetpoint = atan(offset / distance)
+                double txSetpointDeg = Math.toDegrees(Math.atan2(LL_LATERAL_OFFSET_IN, trigDistIn));
+                // Error we want to drive to zero:
+                double txErrorDeg = txDeg - txSetpointDeg;
+                turnAssist = clamp(txErrorDeg * AIM_KP, -AIM_MAX_TURN, AIM_MAX_TURN);    
+                */
+                
+                turnAssist = clamp(txDeg * AIM_KP, -AIM_MAX_TURN, AIM_MAX_TURN);                              
                 telemetry.addData("AimAssist", "ON tx=%.1f° turn=%.2f", txDeg, turnAssist);
             } else {
                 telemetry.addData("AimAssist", "ON (no goal tag in view)");
@@ -302,7 +318,7 @@ private Double updateLimelightPoseAndDistanceTelemetry(int goalTagId) {
     
     predictedRPM = clamp(predictedRPM, PRED_RPM_MIN, PRED_RPM_MAX);
 
-    telemetry.addData("TrigDist→Goal %d", "%.1f in (ty=%.2f°)", goalTagId, trigDistIn, tyDeg);
+    telemetry.addData(String.format("TrigDist → Goal %d", goalTagId),"%.1f in  (angle=%.1f°)", trigDistIn, tyDeg);
     telemetry.addData("PredRPM", "%.0f RPM", predictedRPM);   
 
     return predictedRPM;
@@ -364,8 +380,8 @@ private void applyFlywheelControl(Double predictedRPM) {
      /**
      * Returns tx (horizontal angle) to the chosen goal tag, or null if not detected.
      */
-    private Double getTxToGoalTag(int desiredId) {
-        LLResult result = limelight.getLatestResult();
+    private Double getTxToGoalTag(int desiredId, LLResult result) {
+        // LLResult result = limelight.getLatestResult();
         if (result == null || !result.isValid()) return null;
 
         List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
