@@ -157,7 +157,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
 
         // Limelight
         limelight = hardwareMap.get(Limelight3A.class, "LimeLight");
-        limelight.pipelineSwitch(0);  // AprilTag pipeline
+        limelight.pipelineSwitch(7);  // AprilTag pipeline
         limelight.start();
     }
 
