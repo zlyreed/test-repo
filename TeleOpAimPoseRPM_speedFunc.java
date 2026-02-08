@@ -69,8 +69,13 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     private static final double M_TO_IN = 39.3700787;
 
     // -------- Flywheel prediction model (distanceIn inches -> rpm) --------
+    // Linear regression: y=16.57766x+2602.65546
     private static final double RPM_SLOPE = 16.57766;
     private static final double RPM_INTERCEPT = 2602.65546;
+
+    // Exponential regression: y = 2854.83269 * 1.0039^x
+   // private static final double RPM_A = 2854.83269;
+    // private static final double RPM_B = 1.0039;
 
     private static final double PRED_RPM_MIN = 1500;
     private static final double PRED_RPM_MAX = 6000;
@@ -293,6 +298,8 @@ private Double updateLimelightPoseAndDistanceTelemetry(int goalTagId) {
 
     // Predicted RPM from your linear model
     double predictedRPM = RPM_SLOPE * trigDistIn + RPM_INTERCEPT;
+    // double predictedRPM = RPM_A * Math.pow(RPM_B, trigDistIn);  // Predicted RPM from exponential model: y = A * B^x
+    
     predictedRPM = clamp(predictedRPM, PRED_RPM_MIN, PRED_RPM_MAX);
 
     telemetry.addData("TrigDist→Goal %d", "%.1f in (ty=%.2f°)", goalTagId, trigDistIn, tyDeg);
