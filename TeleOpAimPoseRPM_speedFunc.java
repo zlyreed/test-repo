@@ -32,6 +32,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     // =========================
     // Constants (tune)
     // =========================
+    private static final double TICKS_PER_REV = 28;       // change to your motor spec!
     private static final int BLUE_GOAL_TAG_ID = 20;
     private static final int RED_GOAL_TAG_ID  = 24;
 
@@ -218,25 +219,9 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
         telemetry.addData("IMU Yaw", "%.1f°", yawDeg);
     }
 
-    /**
-     * Returns tx (horizontal angle) to the chosen goal tag, or null if not detected.
-     */
-    private Double getTxToGoalTag(int desiredId) {
-        LLResult result = limelight.getLatestResult();
-        if (result == null || !result.isValid()) return null;
-
-        List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
-        if (fiducials == null || fiducials.isEmpty()) return null;
-
-        for (LLResultTypes.FiducialResult f : fiducials) {
-            if (f.getFiducialId() == desiredId) {
-                return f.getTargetXDegrees();
-            }
-        }
-        return null;
-    }
-
-    // =========================================================
+   
+    
+// =========================================================
 // LIMELIGHT MT1 POSE + DISTANCES + TRIG DIST + PREDICTED RPM
 // Returns predicted RPM (Double) or null if not available
 // =========================================================
@@ -361,9 +346,82 @@ private void applyFlywheelControl(Double predictedRPM) {
 
     
     // =========================================================
-    // Utility
+    // Utility and Helper Functions
     // =========================================================
     private static double clamp(double v, double lo, double hi) {
         return Math.max(lo, Math.min(hi, v));
     }
+
+     /**
+     * Returns tx (horizontal angle) to the chosen goal tag, or null if not detected.
+     */
+    private Double getTxToGoalTag(int desiredId) {
+        LLResult result = limelight.getLatestResult();
+        if (result == null || !result.isValid()) return null;
+
+        List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
+        if (fiducials == null || fiducials.isEmpty()) return null;
+
+        for (LLResultTypes.FiducialResult f : fiducials) {
+            if (f.getFiducialId() == desiredId) {
+                return f.getTargetXDegrees();
+            }
+        }
+        return null;
+    }
+
+    /**
+ * Returns ty (vertical angle) to the chosen goal tag, or null if not detected.
+ * Uses the LLResult you already fetched this loop (preferred), so you don't call getLatestResult() twice.
+ */
+private Double getTyToGoalTag(int desiredId, LLResult result) {
+    if (result == null || !result.isValid()) return null;
+
+    List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
+    if (fiducials == null || fiducials.isEmpty()) return null;
+
+    for (LLResultTypes.FiducialResult f : fiducials) {
+        if (f.getFiducialId() == desiredId) {
+            return f.getTargetYDegrees(); // ty in degrees
+        }
+    }
+    return null;
+}
+
+/**
+ * Trig distance estimate to the goal tag center (inches) using camera geometry.
+ *
+ * tan(a1 + a2) = (h2 - h1) / d
+ * d = (h2 - h1) / tan(a1 + a2)
+ *
+ * where:
+ *  h2 = GOAL_TAG_CENTER_HEIGHT_IN  (tag center height above tile)
+ *  h1 = LL_LENS_HEIGHT_IN          (camera lens height above tile)
+ *  a1 = LL_MOUNT_ANGLE_DEG         (camera pitch up from horizontal)
+ *  a2 = tyDeg                      (Limelight vertical angle to target)
+ *
+ * Returns null if the math becomes invalid (e.g., tan ~ 0).
+ */
+private Double trigDistanceToGoalInchesFromTy(double tyDeg) {
+    // Total vertical angle from horizontal to the target
+    double totalAngleDeg = LL_MOUNT_ANGLE_DEG + tyDeg;
+
+    // Convert to radians for tan()
+    double totalAngleRad = Math.toRadians(totalAngleDeg);
+
+    // Height difference (inches)
+    double heightDiffIn = GOAL_TAG_CENTER_HEIGHT_IN - LL_LENS_HEIGHT_IN;
+
+    // Avoid divide-by-zero / crazy values when angle is near 0 deg
+    double tanVal = Math.tan(totalAngleRad);
+    if (Math.abs(tanVal) < 1e-6) return null;
+
+    // Distance along the floor plane (inches)
+    double dIn = heightDiffIn / tanVal;
+
+    // If the angle/geometry produced a negative distance, treat as invalid
+    if (dIn <= 0) return null;
+    return dIn;
+}
+
 }
