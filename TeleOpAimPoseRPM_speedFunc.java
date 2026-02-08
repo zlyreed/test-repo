@@ -52,7 +52,9 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     // -------- Goal tag field poses (same units/frame as Limelight botpose) --------
     // Fill these with the correct DECODE field coordinates that match Limelight's coordinate system.
     // If Limelight botpose is in METERS (common), keep these in meters.
-    // If your botpose is in some other unit, match that.
+    // Source: community field map post (verify your LL coordinate frame matches).  
+   // Tag 20 (Blue): x=-1.482, y=-1.413, z=0.749 (in meters) / x=-58.35, y=-55.63, z=29.49 (in inches)
+   // Tag 24 (Red):  x=-1.482, y= 1.413, z=0.749 (in meters) /x=-58.35, y=55.63, z=29.49 (in inches); 
 
     // Example placeholders (in meter; replace with your verified values):
     private static final double TAG20_X = -1.482;
@@ -370,6 +372,8 @@ private void applyFlywheelControl(Double predictedRPM) {
         return null;
     }
 
+
+    
     /**
  * Returns ty (vertical angle) to the chosen goal tag, or null if not detected.
  * Uses the LLResult you already fetched this loop (preferred), so you don't call getLatestResult() twice.
@@ -422,6 +426,6 @@ private Double trigDistanceToGoalInchesFromTy(double tyDeg) {
     // If the angle/geometry produced a negative distance, treat as invalid
     if (dIn <= 0) return null;
     return dIn;
-}
+ }
 
 }
