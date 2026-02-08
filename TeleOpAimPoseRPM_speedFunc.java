@@ -11,6 +11,7 @@ import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.IMU;
+import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
@@ -31,6 +32,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     private CRServo sI, sRW1, sRW2;
     private IMU imu;
     private Limelight3A limelight;
+    private Servo led;
 
     // =========================
     // Constants (tune)
@@ -84,6 +86,11 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     private static final double PRED_RPM_MIN = 1500;
     private static final double PRED_RPM_MAX = 6000;
 
+    // ---------------- LED light -------------------
+    private static final double LED_GREEN_POS = 0.5; // <-- you must set these
+    private static final double LED_RED_POS   = 0.2; // <-- you must set these
+    private static final double LED_RPM_TOL = 150;  // speed tolerance
+
     // =========================
     // State
     // =========================
@@ -91,6 +98,12 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     private boolean flywheelOn = false;
     private double flywheelTargetRPM = 0;                 // start guess
     private double lastPredictedRPM = 4200;  // fallback if limelight is not avaible.
+
+    // inital states for intake, ramp wheel 1 and ramp wheel 2
+    private boolean intakeOn = false;
+    private boolean rw1On = false;
+    private boolean rw2ForwardOn = false;
+    private boolean unjamOn = false;
 
     // For field-centric drive
     private double initYawDeg = 0;
@@ -122,8 +135,12 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
             // 3) Limelight: MT1 pose + distance-to-goal + trig distance + predicted RPM
             Double predictedRPM = updateLimelightPoseAndDistanceTelemetry(goalTagId);
 
-            // 4) Flywheel: sets the target RPM only when you toggle ON (Toggle flywheel with gamepad2 Y)
+            // 4) Flywheel: sets the target RPM only when you toggle ON (Toggle flywheel with gamepad2 Y); LED shows Green at predicted RPM
             applyFlywheelControl(predictedRPM);
+
+            // 5) Intake, Ramp wheel 1&2: - Intake toggle: gamepad2 RB; Ramp Wheel 1 toggle: gamepad1 RB; Ramp Wheel 2 forward toggle: gamepad2 A
+                 // Hold-to-unjam override: gamepad2 X 
+             updateIntakeAndRampWheelControls();
             
             telemetry.update();
         }
@@ -171,6 +188,9 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
         limelight = hardwareMap.get(Limelight3A.class, "LimeLight");
         limelight.pipelineSwitch(7);  // AprilTag pipeline
         limelight.start();
+        
+        //LED light
+        led = hardwareMap.get(Servo.class, "led");
     }
 
     // =========================================================
@@ -369,9 +389,79 @@ private void applyFlywheelControl(Double predictedRPM) {
     double targetTicksPerSec = flywheelTargetRPM * TICKS_PER_REV / 60.0;
     mFW.setVelocity(targetTicksPerSec);
 
+    // Set LED light accordingly
+    boolean atSpeed = flywheelOn && (Math.abs(currentRPM - flywheelTargetRPM) <= LED_RPM_TOL); 
+    led.setPosition(atSpeed ? LED_GREEN_POS : LED_RED_POS);
+
     telemetry.addData("Flywheel", "ON  Target=%.0f  Current=%.0f", flywheelTargetRPM, currentRPM);
     telemetry.addData("PredRPM(last)", "%.0f", lastPredictedRPM);
+    
 }
+
+
+ // =========================================================
+ /******* Intake, Rampwheel 1 &2 control:
+ * - Intake toggle: gamepad2 RB
+ * - Ramp Wheel 1 toggle: gamepad1 RB
+ * - Ramp Wheel 2 forward toggle: gamepad2 A
+ * - Hold-to-unjam override: gamepad2 X 
+*/
+// =========================================================
+    
+private void updateIntakeAndRampWheelControls() {
+
+    // =====================TOGGLES (buttons) =====================
+    
+    // Intake toggle: gamepad2 RB
+    if (gamepad2.rightBumperWasPressed()) {
+        intakeOn = !intakeOn;
+    }
+
+    // Ramp Wheel 1 toggle: gamepad1 RB
+    if (gamepad1.rightBumperWasPressed()) {
+        rw1On = !rw1On;
+    }
+
+    // Ramp Wheel 2 forward toggle: gamepad2 A
+    if (gamepad2.aWasPressed()) {
+        rw2ForwardOn = !rw2ForwardOn;
+    }
+
+    // Hold-to-unjam override: gamepad2 X
+    boolean unjamHeld = gamepad2.x;
+
+    // ===================== OUTPUTS (set power once) =====================
+
+    // Intake
+    double intakePower = intakeOn ? 1.0 : 0.0;
+
+    // If you prefer intake to reverse during unjam, use this instead:
+    // double intakePower = unjamHeld ? -0.25 : (intakeOn ? 1.0 : 0.0);
+
+    sI.setPower(intakePower);
+
+    // Default RW powers
+    double rw1Power = rw1On ? 1.0 : 0.0;
+    double rw2Power = rw2ForwardOn ? 1.0 : 0.0;
+
+    // Unjam overrides both RW1 and RW2 while X is held
+    if (unjamHeld) {
+        rw1Power = -0.25;
+        rw2Power = -0.25;
+    }
+
+    sRW1.setPower(rw1Power);
+    sRW2.setPower(rw2Power);
+
+    // Optional telemetry
+    telemetry.addData("Intake", intakeOn ? "ON" : "OFF");
+    telemetry.addData("RW1", rw1On ? "ON" : "OFF");
+    telemetry.addData("RW2", rw2ForwardOn ? "ON" : "OFF");
+    telemetry.addData("Unjam", unjamHeld ? "HELD" : "OFF");
+    
+}
+
+    
 
     
     // =========================================================
