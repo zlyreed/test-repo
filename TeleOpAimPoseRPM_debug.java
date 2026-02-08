@@ -18,8 +18,6 @@ import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 
 import java.util.List;
 
-// worked for the Lotus Robot (changed the file name to "TeleOpAimPoseRPM.java")
-
 
 @TeleOp(name = "TeleOpAimPoseRPM_debug", group = "Robot")
 public class TeleOpAimPoseRPM_debug extends LinearOpMode {
