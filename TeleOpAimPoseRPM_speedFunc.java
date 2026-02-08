@@ -51,6 +51,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     // Measure these on YOUR robot:
     private static final double LL_LENS_HEIGHT_IN = 12;   // lens center height above tile (measured)
     private static final double LL_MOUNT_ANGLE_DEG = 0;  // camera pitch up from horizontal
+    //private static final double LL_LATERAL_OFFSET_IN = 6.5; // camera from the center of the robot (lateral; Y axis (Y+=left): -6.5 inches) 
 
     // -------- Goal tag field poses (same units/frame as Limelight botpose) --------
     // Fill these with the correct DECODE field coordinates that match Limelight's coordinate system.
