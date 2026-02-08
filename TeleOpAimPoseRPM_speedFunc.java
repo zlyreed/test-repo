@@ -17,6 +17,9 @@ import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 
 import java.util.List;
 
+// Commented out: Predicted RPM from exponential model: y = A * B^x
+// Commented out: additional adjustment for aim assist
+
 @TeleOp(name = "TeleOpAimPoseRPM_speedFunc", group = "Robot")
 public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
 
