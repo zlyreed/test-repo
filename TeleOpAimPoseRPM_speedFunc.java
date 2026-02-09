@@ -51,16 +51,16 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     private static final double GOAL_TAG_CENTER_HEIGHT_IN = 29.49; // measured in the field
 
     // Measure these on YOUR robot:
-    private static final double LL_LENS_HEIGHT_IN = 12;   // lens center height above tile (measured)
+    private static final double LL_LENS_HEIGHT_IN = 14;   // lens center height above tile (measured; original=12 inches); may need adjust the regression
     private static final double LL_MOUNT_ANGLE_DEG = 0;  // camera pitch up from horizontal
-    //private static final double LL_LATERAL_OFFSET_IN = 6.5; // camera from the center of the robot (lateral; Y axis (Y+=left): -6.5 inches) 
+    //private static final double LL_LATERAL_OFFSET_IN = 6.5; // camera from the center of the robot (lateral; Y axis (Y+=left): -6.5 inches)
 
     // -------- Goal tag field poses (same units/frame as Limelight botpose) --------
     // Fill these with the correct DECODE field coordinates that match Limelight's coordinate system.
     // If Limelight botpose is in METERS (common), keep these in meters.
-    // Source: community field map post (verify your LL coordinate frame matches).  
-   // Tag 20 (Blue): x=-1.482, y=-1.413, z=0.749 (in meters) / x=-58.35, y=-55.63, z=29.49 (in inches)
-   // Tag 24 (Red):  x=-1.482, y= 1.413, z=0.749 (in meters) /x=-58.35, y=55.63, z=29.49 (in inches); 
+    // Source: community field map post (verify your LL coordinate frame matches).
+    // Tag 20 (Blue): x=-1.482, y=-1.413, z=0.749 (in meters) / x=-58.35, y=-55.63, z=29.49 (in inches)
+    // Tag 24 (Red):  x=-1.482, y= 1.413, z=0.749 (in meters) /x=-58.35, y=55.63, z=29.49 (in inches);
 
     // Example placeholders (in meter; replace with your verified values):
     private static final double TAG20_X = -1.482;
@@ -80,7 +80,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     private static final double RPM_INTERCEPT = 2602.65546;
 
     // Exponential regression: y = 2854.83269 * 1.0039^x
-   // private static final double RPM_A = 2854.83269;
+    // private static final double RPM_A = 2854.83269;
     // private static final double RPM_B = 1.0039;
 
     private static final double PRED_RPM_MIN = 1500;
@@ -139,9 +139,9 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
             applyFlywheelControl(predictedRPM);
 
             // 5) Intake, Ramp wheel 1&2: - Intake toggle: gamepad2 RB; Ramp Wheel 1 toggle: gamepad1 RB; Ramp Wheel 2 forward toggle: gamepad2 A
-                 // Hold-to-unjam override: gamepad2 X 
-             updateIntakeAndRampWheelControls();
-            
+            // Hold-to-unjam override: gamepad2 X
+            updateIntakeAndRampWheelControls();
+
             telemetry.update();
         }
 
@@ -188,7 +188,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
         limelight = hardwareMap.get(Limelight3A.class, "LimeLight");
         limelight.pipelineSwitch(7);  // AprilTag pipeline
         limelight.start();
-        
+
         //LED light
         led = hardwareMap.get(Servo.class, "led");
     }
@@ -220,22 +220,22 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
 
         if (aimAssistEnabled) {
             Double txDeg = getTxToGoalTag(goalTagId, result);
-            
+
             // ** If additional adjustment neeed
             //Double tyDeg = getTyToGoalTag(goalTagId, result);
             //Double trigDistIn = trigDistanceToGoalInchesFromTy(tyDeg);
-            
+
             if (txDeg != null) {
-                
+
                 /* If additional adjustment neeed
                 // txSetpoint = atan(offset / distance)
                 double txSetpointDeg = Math.toDegrees(Math.atan2(LL_LATERAL_OFFSET_IN, trigDistIn));
                 // Error we want to drive to zero:
                 double txErrorDeg = txDeg - txSetpointDeg;
-                turnAssist = clamp(txErrorDeg * AIM_KP, -AIM_MAX_TURN, AIM_MAX_TURN);    
+                turnAssist = clamp(txErrorDeg * AIM_KP, -AIM_MAX_TURN, AIM_MAX_TURN);
                 */
-                
-                turnAssist = clamp(txDeg * AIM_KP, -AIM_MAX_TURN, AIM_MAX_TURN);                              
+
+                turnAssist = clamp(txDeg * AIM_KP, -AIM_MAX_TURN, AIM_MAX_TURN);
                 telemetry.addData("AimAssist", "ON tx=%.1f° turn=%.2f", txDeg, turnAssist);
             } else {
                 telemetry.addData("AimAssist", "ON (no goal tag in view)");
@@ -266,204 +266,205 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
         telemetry.addData("IMU Yaw", "%.1f°", yawDeg);
     }
 
-   
-    
-// =========================================================
+
+
+    // =========================================================
 // LIMELIGHT MT1 POSE + DISTANCES + TRIG DIST + PREDICTED RPM
 // Returns predicted RPM (Double) or null if not available
 // =========================================================
-private Double updateLimelightPoseAndDistanceTelemetry(int goalTagId) {
+    private Double updateLimelightPoseAndDistanceTelemetry(int goalTagId) {
 
-    // Feed yaw for better pose fusion
-    double yawDeg = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
-    limelight.updateRobotOrientation(yawDeg);
+        // Feed yaw for better pose fusion
+        double yawDeg = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
+        limelight.updateRobotOrientation(yawDeg);
 
-    LLResult result = limelight.getLatestResult();
-    if (result == null || !result.isValid()) {
-        telemetry.addData("LL", "No valid result");
-        return null;
-    }
-
-    telemetry.addData("LL Pipeline", "Index=%d Type=%s",
-            result.getPipelineIndex(), result.getPipelineType());
-
-    // ---- MT1 pose only ----
-    Pose3D mt1 = result.getBotpose();
-    if (mt1 == null) {
-        telemetry.addData("LL MT1 Pose", "null");
-        return null;
-    }
-
-    double rx = mt1.getPosition().x;
-    double ry = mt1.getPosition().y;
-    double rz = mt1.getPosition().z;
-
-    telemetry.addData("LL MT1 Pose (field)", "x=%.2f y=%.2f z=%.2f", rx, ry, rz);
-
-    // ---- Goal tag pose (field) ----
-    double gx, gy, gz;
-    if (goalTagId == BLUE_GOAL_TAG_ID) {
-        gx = TAG20_X; gy = TAG20_Y; gz = TAG20_Z;
-    } else {
-        gx = TAG24_X; gy = TAG24_Y; gz = TAG24_Z;
-    }
-
-    double dx = gx - rx;
-    double dy = gy - ry;
-    double dz = gz - rz;
-
-    double distXY = Math.hypot(dx, dy);
-    double dist3D = Math.sqrt(dx*dx + dy*dy + dz*dz);
-
-    telemetry.addData("MT1→Goal DistXY", "%.2f (%.1f in)", distXY, distXY * M_TO_IN);
-    telemetry.addData("MT1→Goal Dist3D", "%.2f (%.1f in)", dist3D, dist3D * M_TO_IN);
-
-    telemetry.addData("LL TagCount/AvgDist", "%d / %.2f m",
-            result.getBotposeTagCount(), result.getBotposeAvgDist());
-
-    // ---- Trig distance using ty of the selected goal tag ----
-    Double tyDeg = getTyToGoalTag(goalTagId, result);
-    if (tyDeg == null) {
-        telemetry.addData("TrigDist", "n/a (goal tag %d not in view)", goalTagId);
-        telemetry.addData("PredRPM", "n/a");
-        return null;
-    }
-
-    Double trigDistIn = trigDistanceToGoalInchesFromTy(tyDeg);
-    if (trigDistIn == null) {
-        telemetry.addData("TrigDist", "invalid (ty=%.2f°)", tyDeg);
-        telemetry.addData("PredRPM", "n/a");
-        return null;
-    }
-
-    // Predicted RPM from your linear model
-    double predictedRPM = RPM_SLOPE * trigDistIn + RPM_INTERCEPT;
-    // double predictedRPM = RPM_A * Math.pow(RPM_B, trigDistIn);  // Predicted RPM from exponential model: y = A * B^x
-    
-    predictedRPM = clamp(predictedRPM, PRED_RPM_MIN, PRED_RPM_MAX);
-
-    telemetry.addData(String.format("TrigDist → Goal %d", goalTagId),"%.1f in  (angle=%.1f°)", trigDistIn, tyDeg);
-    telemetry.addData("PredRPM", "%.0f RPM", predictedRPM);   
-
-    return predictedRPM;
-}
-
-// =========================================================
- /* Flywheel control:
- * - gamepad2 Y toggles ON/OFF
- * - When toggled ON: set target RPM = latest predicted RPM (or fallback)
- * - While ON: runs motor using setVelocity()
- * Pass predictedRPM from Limelight (may be null).
-*/
-// =========================================================
-    
-private void applyFlywheelControl(Double predictedRPM) {
-
-    // Track last good prediction for fallback
-    if (predictedRPM != null) {
-        lastPredictedRPM = predictedRPM;
-    }
-
-    // Toggle flywheel with gamepad2 Y
-    if (gamepad2.yWasPressed()) {
-        flywheelOn = !flywheelOn;
-
-        if (flywheelOn) {
-            // Pick target at the moment we turn ON
-            double target = (predictedRPM != null) ? predictedRPM : lastPredictedRPM;
-            flywheelTargetRPM = clamp(target, PRED_RPM_MIN, PRED_RPM_MAX);
+        LLResult result = limelight.getLatestResult();
+        if (result == null || !result.isValid()) {
+            telemetry.addData("LL", "No valid result");
+            return null;
         }
+
+        telemetry.addData("LL Pipeline", "Index=%d Type=%s",
+                result.getPipelineIndex(), result.getPipelineType());
+
+        // ---- MT1 pose only ----
+        Pose3D mt1 = result.getBotpose();
+        if (mt1 == null) {
+            telemetry.addData("LL MT1 Pose", "null");
+            return null;
+        }
+
+        double rx = mt1.getPosition().x;
+        double ry = mt1.getPosition().y;
+        double rz = mt1.getPosition().z;
+
+        telemetry.addData("LL MT1 Pose (field)", "x=%.2f y=%.2f z=%.2f", rx, ry, rz);
+
+        // ---- Goal tag pose (field) ----
+        double gx, gy, gz;
+        if (goalTagId == BLUE_GOAL_TAG_ID) {
+            gx = TAG20_X; gy = TAG20_Y; gz = TAG20_Z;
+        } else {
+            gx = TAG24_X; gy = TAG24_Y; gz = TAG24_Z;
+        }
+
+        double dx = gx - rx;
+        double dy = gy - ry;
+        double dz = gz - rz;
+
+        double distXY = Math.hypot(dx, dy);
+        double dist3D = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+        telemetry.addData("MT1→Goal DistXY", "%.2f (%.1f in)", distXY, distXY * M_TO_IN);
+        telemetry.addData("MT1→Goal Dist3D", "%.2f (%.1f in)", dist3D, dist3D * M_TO_IN);
+
+        telemetry.addData("LL TagCount/AvgDist", "%d / %.2f m",
+                result.getBotposeTagCount(), result.getBotposeAvgDist());
+
+        // ---- Trig distance using ty of the selected goal tag ----
+        Double tyDeg = getTyToGoalTag(goalTagId, result);
+        if (tyDeg == null) {
+            telemetry.addData("TrigDist", "n/a (goal tag %d not in view)", goalTagId);
+            telemetry.addData("PredRPM", "n/a");
+            return null;
+        }
+
+        Double trigDistIn = trigDistanceToGoalInchesFromTy(tyDeg);
+        if (trigDistIn == null) {
+            telemetry.addData("TrigDist", "invalid (ty=%.2f°)", tyDeg);
+            telemetry.addData("PredRPM", "n/a");
+            return null;
+        }
+
+        // Predicted RPM from your linear model
+        double predictedRPM = RPM_SLOPE * trigDistIn + RPM_INTERCEPT;
+        // double predictedRPM = RPM_A * Math.pow(RPM_B, trigDistIn);  // Predicted RPM from exponential model: y = A * B^x
+
+        predictedRPM = clamp(predictedRPM, PRED_RPM_MIN, PRED_RPM_MAX);
+
+        telemetry.addData(String.format("TrigDist → Goal %d", goalTagId),"%.1f in  (angle=%.1f°)", trigDistIn, tyDeg);
+        telemetry.addData("PredRPM", "%.0f RPM", predictedRPM);
+
+        return predictedRPM;
     }
 
-    // Read current RPM for telemetry
-    double currentRPM = mFW.getVelocity() * 60.0 / TICKS_PER_REV;
-
-    if (!flywheelOn) {
-        mFW.setPower(0.0);
-        telemetry.addData("Flywheel", "OFF (RPM=%.0f)", currentRPM);
-        telemetry.addData("PredRPM(last)", "%.0f", lastPredictedRPM);
-        return;
-    }
-
-    // Run flywheel at target velocity
-    double targetTicksPerSec = flywheelTargetRPM * TICKS_PER_REV / 60.0;
-    mFW.setVelocity(targetTicksPerSec);
-
-    // Set LED light accordingly
-    boolean atSpeed = flywheelOn && (Math.abs(currentRPM - flywheelTargetRPM) <= LED_RPM_TOL); 
-    led.setPosition(atSpeed ? LED_GREEN_POS : LED_RED_POS);
-
-    telemetry.addData("Flywheel", "ON  Target=%.0f  Current=%.0f", flywheelTargetRPM, currentRPM);
-    telemetry.addData("PredRPM(last)", "%.0f", lastPredictedRPM);
-    
-}
-
-
- // =========================================================
- /******* Intake, Rampwheel 1 &2 control:
- * - Intake toggle: gamepad2 RB
- * - Ramp Wheel 1 toggle: gamepad1 RB
- * - Ramp Wheel 2 forward toggle: gamepad2 A
- * - Hold-to-unjam override: gamepad2 X 
-*/
 // =========================================================
-    
-private void updateIntakeAndRampWheelControls() {
+    /* Flywheel control:
+     * - gamepad2 Y toggles ON/OFF
+     * - When toggled ON: set target RPM = latest predicted RPM (or fallback)
+     * - While ON: runs motor using setVelocity()
+     * Pass predictedRPM from Limelight (may be null).
+     */
+// =========================================================
 
-    // =====================TOGGLES (buttons) =====================
-    
-    // Intake toggle: gamepad2 RB
-    if (gamepad2.rightBumperWasPressed()) {
-        intakeOn = !intakeOn;
+    private void applyFlywheelControl(Double predictedRPM) {
+
+        // Track last good prediction for fallback
+        if (predictedRPM != null) {
+            lastPredictedRPM = predictedRPM;
+        }
+
+        // Toggle flywheel with gamepad2 Y
+        if (gamepad2.yWasPressed()) {
+            flywheelOn = !flywheelOn;
+
+            if (flywheelOn) {
+                // Pick target at the moment we turn ON
+                double target = (predictedRPM != null) ? predictedRPM : lastPredictedRPM;
+                flywheelTargetRPM = clamp(target, PRED_RPM_MIN, PRED_RPM_MAX);
+            }
+        }
+
+        // Read current RPM for telemetry
+        double currentRPM = mFW.getVelocity() * 60.0 / TICKS_PER_REV;
+
+        if (!flywheelOn) {
+            mFW.setPower(0.0);
+            telemetry.addData("Flywheel", "OFF (RPM=%.0f)", currentRPM);
+            telemetry.addData("PredRPM(last)", "%.0f", lastPredictedRPM);
+            return;
+        }
+
+        // Run flywheel at target velocity
+        double targetTicksPerSec = flywheelTargetRPM * TICKS_PER_REV / 60.0;
+        mFW.setVelocity(targetTicksPerSec);
+
+        // Set LED light accordingly
+        boolean atSpeed = flywheelOn && (Math.abs(currentRPM - flywheelTargetRPM) <= LED_RPM_TOL);
+        led.setPosition(atSpeed ? LED_GREEN_POS : LED_RED_POS);
+
+        telemetry.addData("Flywheel", "ON  Target=%.0f  Current=%.0f", flywheelTargetRPM, currentRPM);
+        telemetry.addData("PredRPM(last)", "%.0f", lastPredictedRPM);
+
     }
 
-    // Ramp Wheel 1 toggle: gamepad1 RB
-    if (gamepad1.rightBumperWasPressed()) {
-        rw1On = !rw1On;
+
+    // =========================================================
+    /******* Intake, Rampwheel 1 &2 control:
+     * - Intake toggle: gamepad2 RB
+     * - Ramp Wheel 1 toggle: gamepad1 RB
+     * - Ramp Wheel 2 forward toggle: gamepad2 A
+     * - Hold-to-unjam override: gamepad2 X
+     */
+// =========================================================
+
+    private void
+    updateIntakeAndRampWheelControls() {
+
+        // =====================TOGGLES (buttons) =====================
+
+        // Intake toggle: gamepad2 RB
+        if (gamepad2.rightBumperWasPressed()) {
+            intakeOn = !intakeOn;
+        }
+
+        // Ramp Wheel 1 toggle: gamepad1 RB
+        if (gamepad1.rightBumperWasPressed()) {
+            rw1On = !rw1On;
+        }
+
+        // Ramp Wheel 2 forward toggle: gamepad2 A
+        if (gamepad2.aWasPressed()) {
+            rw2ForwardOn = !rw2ForwardOn;
+        }
+
+        // Hold-to-unjam override: gamepad2 X
+        boolean unjamHeld = gamepad2.x;
+
+        // ===================== OUTPUTS (set power once) =====================
+
+        // Intake
+        double intakePower = intakeOn ? 1.0 : 0.0;
+
+        // If you prefer intake to reverse during unjam, use this instead:
+        // double intakePower = unjamHeld ? -0.25 : (intakeOn ? 1.0 : 0.0);
+
+        sI.setPower(intakePower);
+
+        // Default RW powers
+        double rw1Power = rw1On ? 1.0 : 0.0;
+        double rw2Power = rw2ForwardOn ? 1.0 : 0.0;
+
+        // Unjam overrides both RW1 and RW2 while X is held
+        if (unjamHeld) {
+            rw1Power = -0.25;
+            rw2Power = -0.25;
+        }
+
+        sRW1.setPower(rw1Power);
+        sRW2.setPower(rw2Power);
+
+        // Optional telemetry
+        telemetry.addData("Intake", intakeOn ? "ON" : "OFF");
+        telemetry.addData("RW1", rw1On ? "ON" : "OFF");
+        telemetry.addData("RW2", rw2ForwardOn ? "ON" : "OFF");
+        telemetry.addData("Unjam", unjamHeld ? "HELD" : "OFF");
+
     }
 
-    // Ramp Wheel 2 forward toggle: gamepad2 A
-    if (gamepad2.aWasPressed()) {
-        rw2ForwardOn = !rw2ForwardOn;
-    }
 
-    // Hold-to-unjam override: gamepad2 X
-    boolean unjamHeld = gamepad2.x;
 
-    // ===================== OUTPUTS (set power once) =====================
 
-    // Intake
-    double intakePower = intakeOn ? 1.0 : 0.0;
-
-    // If you prefer intake to reverse during unjam, use this instead:
-    // double intakePower = unjamHeld ? -0.25 : (intakeOn ? 1.0 : 0.0);
-
-    sI.setPower(intakePower);
-
-    // Default RW powers
-    double rw1Power = rw1On ? 1.0 : 0.0;
-    double rw2Power = rw2ForwardOn ? 1.0 : 0.0;
-
-    // Unjam overrides both RW1 and RW2 while X is held
-    if (unjamHeld) {
-        rw1Power = -0.25;
-        rw2Power = -0.25;
-    }
-
-    sRW1.setPower(rw1Power);
-    sRW2.setPower(rw2Power);
-
-    // Optional telemetry
-    telemetry.addData("Intake", intakeOn ? "ON" : "OFF");
-    telemetry.addData("RW1", rw1On ? "ON" : "OFF");
-    telemetry.addData("RW2", rw2ForwardOn ? "ON" : "OFF");
-    telemetry.addData("Unjam", unjamHeld ? "HELD" : "OFF");
-    
-}
-
-    
-
-    
     // =========================================================
     // Utility and Helper Functions
     // =========================================================
@@ -471,7 +472,7 @@ private void updateIntakeAndRampWheelControls() {
         return Math.max(lo, Math.min(hi, v));
     }
 
-     /**
+    /**
      * Returns tx (horizontal angle) to the chosen goal tag, or null if not detected.
      */
     private Double getTxToGoalTag(int desiredId, LLResult result) {
@@ -490,59 +491,59 @@ private void updateIntakeAndRampWheelControls() {
     }
 
 
-    
+
     /**
- * Returns ty (vertical angle) to the chosen goal tag, or null if not detected.
- * Uses the LLResult you already fetched this loop (preferred), so you don't call getLatestResult() twice.
- */
-private Double getTyToGoalTag(int desiredId, LLResult result) {
-    if (result == null || !result.isValid()) return null;
+     * Returns ty (vertical angle) to the chosen goal tag, or null if not detected.
+     * Uses the LLResult you already fetched this loop (preferred), so you don't call getLatestResult() twice.
+     */
+    private Double getTyToGoalTag(int desiredId, LLResult result) {
+        if (result == null || !result.isValid()) return null;
 
-    List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
-    if (fiducials == null || fiducials.isEmpty()) return null;
+        List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
+        if (fiducials == null || fiducials.isEmpty()) return null;
 
-    for (LLResultTypes.FiducialResult f : fiducials) {
-        if (f.getFiducialId() == desiredId) {
-            return f.getTargetYDegrees(); // ty in degrees
+        for (LLResultTypes.FiducialResult f : fiducials) {
+            if (f.getFiducialId() == desiredId) {
+                return f.getTargetYDegrees(); // ty in degrees
+            }
         }
+        return null;
     }
-    return null;
-}
 
-/**
- * Trig distance estimate to the goal tag center (inches) using camera geometry.
- *
- * tan(a1 + a2) = (h2 - h1) / d
- * d = (h2 - h1) / tan(a1 + a2)
- *
- * where:
- *  h2 = GOAL_TAG_CENTER_HEIGHT_IN  (tag center height above tile)
- *  h1 = LL_LENS_HEIGHT_IN          (camera lens height above tile)
- *  a1 = LL_MOUNT_ANGLE_DEG         (camera pitch up from horizontal)
- *  a2 = tyDeg                      (Limelight vertical angle to target)
- *
- * Returns null if the math becomes invalid (e.g., tan ~ 0).
- */
-private Double trigDistanceToGoalInchesFromTy(double tyDeg) {
-    // Total vertical angle from horizontal to the target
-    double totalAngleDeg = LL_MOUNT_ANGLE_DEG + tyDeg;
+    /**
+     * Trig distance estimate to the goal tag center (inches) using camera geometry.
+     *
+     * tan(a1 + a2) = (h2 - h1) / d
+     * d = (h2 - h1) / tan(a1 + a2)
+     *
+     * where:
+     *  h2 = GOAL_TAG_CENTER_HEIGHT_IN  (tag center height above tile)
+     *  h1 = LL_LENS_HEIGHT_IN          (camera lens height above tile)
+     *  a1 = LL_MOUNT_ANGLE_DEG         (camera pitch up from horizontal)
+     *  a2 = tyDeg                      (Limelight vertical angle to target)
+     *
+     * Returns null if the math becomes invalid (e.g., tan ~ 0).
+     */
+    private Double trigDistanceToGoalInchesFromTy(double tyDeg) {
+        // Total vertical angle from horizontal to the target
+        double totalAngleDeg = LL_MOUNT_ANGLE_DEG + tyDeg;
 
-    // Convert to radians for tan()
-    double totalAngleRad = Math.toRadians(totalAngleDeg);
+        // Convert to radians for tan()
+        double totalAngleRad = Math.toRadians(totalAngleDeg);
 
-    // Height difference (inches)
-    double heightDiffIn = GOAL_TAG_CENTER_HEIGHT_IN - LL_LENS_HEIGHT_IN;
+        // Height difference (inches)
+        double heightDiffIn = GOAL_TAG_CENTER_HEIGHT_IN - LL_LENS_HEIGHT_IN;
 
-    // Avoid divide-by-zero / crazy values when angle is near 0 deg
-    double tanVal = Math.tan(totalAngleRad);
-    if (Math.abs(tanVal) < 1e-6) return null;
+        // Avoid divide-by-zero / crazy values when angle is near 0 deg
+        double tanVal = Math.tan(totalAngleRad);
+        if (Math.abs(tanVal) < 1e-6) return null;
 
-    // Distance along the floor plane (inches)
-    double dIn = heightDiffIn / tanVal;
+        // Distance along the floor plane (inches)
+        double dIn = heightDiffIn / tanVal;
 
-    // If the angle/geometry produced a negative distance, treat as invalid
-    if (dIn <= 0) return null;
-    return dIn;
- }
+        // If the angle/geometry produced a negative distance, treat as invalid
+        if (dIn <= 0) return null;
+        return dIn;
+    }
 
 }
