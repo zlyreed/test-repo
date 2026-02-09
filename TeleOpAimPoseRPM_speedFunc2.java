@@ -61,8 +61,6 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     // Source: community field map post (verify your LL coordinate frame matches).
     // Tag 20 (Blue): x=-1.482, y=-1.413, z=0.749 (in meters) / x=-58.35, y=-55.63, z=29.49 (in inches)
     // Tag 24 (Red):  x=-1.482, y= 1.413, z=0.749 (in meters) /x=-58.35, y=55.63, z=29.49 (in inches);
-
-    // Example placeholders (in meter; replace with your verified values):
     private static final double TAG20_X = -1.482;
     private static final double TAG20_Y = -1.413;
     private static final double TAG20_Z =  0.749;
@@ -74,7 +72,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     // Unit conversion (if TAG coords & botpose are meters)
     private static final double M_TO_IN = 39.3700787;
 
-    // -------- Flywheel prediction model (distanceIn inches -> rpm) --------
+    // -------- Flywheel speed and prediction model (distanceIn inches -> rpm) --------
     // Linear regression: y=16.57766x+2602.65546
     private static final double RPM_SLOPE = 16.57766;
     private static final double RPM_INTERCEPT = 2602.65546;
@@ -85,6 +83,13 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
 
     private static final double PRED_RPM_MIN = 1500;
     private static final double PRED_RPM_MAX = 5800;
+    
+    private static final double MANUAL_RPM_UP = 3800;  // desired speed for near shooting
+    private static final double MANUAL_RPM_DOWN = 5000;  // desired speed for far shooting
+    private double flywheelTargetRPM = MANUAL_RPM_UP;    // start guess
+    private double lastPredictedRPM = MANUAL_RPM_UP;  // fallback if limelight is not avaible.    
+    private double manualFallbackRPM = MANUAL_RPM_UP;
+    
 
     // ---------------- LED light -------------------
     private static final double LED_GREEN_POS = 0.5; // Green
@@ -97,18 +102,20 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     // =========================
     private int goalTagId = BLUE_GOAL_TAG_ID; // toggle between blue/red
     private boolean flywheelOn = false;
-    private double flywheelTargetRPM = 0;                 // start guess
-    private double lastPredictedRPM = 4200;  // fallback if limelight is not avaible.
     
-    private double manualFallbackRPM = 3800;
-    private static final double MANUAL_RPM_UP = 3800;  //shoot from the near zone
-    private static final double MANUAL_RPM_DOWN = 5000;  // shoot from the far zone
-
     // inital states for intake, ramp wheel 1 and ramp wheel 2
     private boolean intakeOn = false;
     private boolean rw1On = false;
-    private boolean rw2ForwardOn = false;
+    private boolean rw2On = false;
     private boolean unjamOn = false;
+
+    // RW2 pulse settings
+    private static final long RW2_PULSE_MS = 50;       // start 50ms; tune down or up later
+    private static final double RW2_PULSE_PWR = 1.0;
+
+    // Pulse state
+    private boolean rw2PulseActive = false;
+    private long rw2PulseStartMs = 0;
 
     // For field-centric drive
     private double initYawDeg = 0;
@@ -382,63 +389,79 @@ private void applyFlywheelControl(Double predictedRPM) {
     // =====================Intake, Rampwheel 1 &2 control:=============================
     /* - Intake toggle: gamepad2 RB
      * - Ramp Wheel 1 toggle: gamepad1 RB
-     * - Ramp Wheel 2 forward toggle: gamepad2 A
+     * - Ramp Wheel 2 forward toggle: gamepad2 A; pulse move: gamepad 2, left bumper
      * - Hold-to-unjam override: gamepad2 X
      */
    // ====================================================================================
 
-    private void
-    updateIntakeAndRampWheelControls() {
+    private void updateIntakeAndRampWheelControls() {
 
-        // =====================TOGGLES (buttons) =====================
+    long now = System.currentTimeMillis();
 
-        // Intake toggle: gamepad2 RB
-        if (gamepad2.rightBumperWasPressed()) {
-            intakeOn = !intakeOn;
-        }
+    // ===================== TOGGLES (buttons) =====================
 
-        // Ramp Wheel 1 toggle: gamepad1 RB
-        if (gamepad1.rightBumperWasPressed()) {
-            rw1On = !rw1On;
-        }
-
-        // Ramp Wheel 2 forward toggle: gamepad2 A
-        if (gamepad2.aWasPressed()) {
-            rw2ForwardOn = !rw2ForwardOn;
-        }
-
-        // Hold-to-unjam override: gamepad2 X
-        boolean unjamHeld = gamepad2.x;
-
-        // ===================== OUTPUTS (set power once) =====================
-
-        // Intake
-        double intakePower = intakeOn ? 1.0 : 0.0;
-        sI.setPower(intakePower);
-
-        // Default RW powers
-        double rw1Power = rw1On ? 1.0 : 0.0;
-        double rw2Power = rw2ForwardOn ? 1.0 : 0.0;
-
-        // Unjam overrides both RW1 and RW2 while X is held
-        if (unjamHeld) {
-            rw1Power = -0.25;
-            rw2Power = -0.25;
-        }
-
-        sRW1.setPower(rw1Power);
-        sRW2.setPower(rw2Power);
-
-       /* // Optional telemetry
-        telemetry.addData("Intake", intakeOn ? "ON" : "OFF");
-        telemetry.addData("RW1", rw1On ? "ON" : "OFF");
-        telemetry.addData("RW2", rw2ForwardOn ? "ON" : "OFF");
-        telemetry.addData("Unjam", unjamHeld ? "HELD" : "OFF");
-        */
-
+    // Intake toggle: gamepad2 RB
+    if (gamepad2.rightBumperWasPressed()) {
+        intakeOn = !intakeOn;
     }
 
+    // Ramp Wheel 1 toggle: gamepad1 RB
+    if (gamepad1.rightBumperWasPressed()) {
+        rw1On = !rw1On;
+    }
 
+    // Ramp Wheel 2 toggle: gamepad2 A
+    if (gamepad2.aWasPressed()) {
+        rw2On = !rw2On;
+    }
+
+    // ===================== RW2 PULSE (gamepad2 LEFT BUMPER) =====================
+    if (gamepad2.leftBumperWasPressed()) {
+        rw2PulseActive = true;
+        rw2PulseStartMs = now;
+    }
+
+    // pulse timeout
+    if (rw2PulseActive && (now - rw2PulseStartMs >= RW2_PULSE_MS)) {
+        rw2PulseActive = false;
+    }
+
+    // ===================== UNJAM (hold X) =====================
+    boolean unjamHeld = gamepad2.x;  // hold-to-unjam
+
+    // ===================== OUTPUTS (set power once) =====================
+
+    // Intake
+    double intakePower = intakeOn ? 1.0 : 0.0;
+    sI.setPower(intakePower);
+
+    // Default RW powers
+    double rw1Power = rw1On ? 1.0 : 0.0;
+    double rw2Power = rw2On ? 1.0 : 0.0;
+
+    // Priority 1: unjam overrides everything
+    if (unjamHeld) {
+        rw1Power = -0.25;
+        rw2Power = -0.25;
+    }
+    // Priority 2: pulse overrides normal RW2 toggle
+    else if (rw2PulseActive) {
+        rw2Power = RW2_PULSE_PWR;
+
+        // Optional: pause RW1 during pulse to reduce pushing the next ball
+        // rw1Power = 0.0;
+    }
+
+    sRW1.setPower(rw1Power);
+    sRW2.setPower(rw2Power);
+
+    // ===================== TELEMETRY =====================
+    telemetry.addData("Intake", intakeOn ? "ON" : "OFF");
+    telemetry.addData("RW1", rw1On ? "ON" : "OFF");
+    telemetry.addData("RW2", rw2On ? "ON" : "OFF");
+    telemetry.addData("RW2 Pulse", rw2PulseActive ? "ACTIVE" : "OFF");
+    telemetry.addData("Unjam", unjamHeld ? "HELD" : "OFF");
+}
 
 
     // =========================================================
