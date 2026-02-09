@@ -84,7 +84,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     // private static final double RPM_B = 1.0039;
 
     private static final double PRED_RPM_MIN = 1500;
-    private static final double PRED_RPM_MAX = 6000;
+    private static final double PRED_RPM_MAX = 5800;
 
     // ---------------- LED light -------------------
     private static final double LED_GREEN_POS = 0.5; // Green
@@ -99,6 +99,10 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     private boolean flywheelOn = false;
     private double flywheelTargetRPM = 0;                 // start guess
     private double lastPredictedRPM = 4200;  // fallback if limelight is not avaible.
+    
+    private double manualFallbackRPM = 3800;
+    private static final double MANUAL_RPM_UP = 3800;  //shoot from the near zone
+    private static final double MANUAL_RPM_DOWN = 5000;  // shoot from the far zone
 
     // inital states for intake, ramp wheel 1 and ramp wheel 2
     private boolean intakeOn = false;
@@ -137,7 +141,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
             // Hold-to-unjam override: gamepad2 X
             updateIntakeAndRampWheelControls();
 
-            // 4) Limelight: MT1 pose + distance-to-goal + trig distance + predicted RPM
+            // 4) Limelight:  trig distance + predicted RPM (if limelight data is not avaiable, press gamepad1 Up to pick near shooting RPM or gamepad1 down to pick far shooting RPM 
             Double predictedRPM = updateLimelightPoseAndDistanceTelemetry(goalTagId);
 
             // 5) Flywheel: sets the target RPM only when you toggle ON (Toggle flywheel with gamepad2 Y); LED shows Green at predicted RPM
@@ -270,49 +274,56 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
 
 
 // =========================================================
-// LIMELIGHT MT1 POSE + DISTANCES + TRIG DIST + PREDICTED RPM
-// Returns predicted RPM (Double) or null if not available
+// LIMELIGHT TRIG DIST + PREDICTED RPM
+// Returns predicted RPM (Double) or gamepad1 Up to pick near shooting RPM or gamepad1 down to pick far shooting RPM 
 // =========================================================
     private Double updateLimelightPoseAndDistanceTelemetry(int goalTagId) {
+
+        // Driver can select manual RPM anytime
+        if (gamepad1.dpad_up)   manualFallbackRPM = MANUAL_RPM_UP;
+        if (gamepad1.dpad_down) manualFallbackRPM = MANUAL_RPM_DOWN;
+
+        // Default predictedRPM = manual, will be overwritten if we get a valid trig distance
+        double predictedRPM = clamp(manualFallbackRPM, PRED_RPM_MIN, PRED_RPM_MAX);
 
         // Feed yaw for better pose fusion
         // double yawDeg = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
         // limelight.updateRobotOrientation(yawDeg);
 
         LLResult result = limelight.getLatestResult();
+        
         if (result == null || !result.isValid()) {
             telemetry.addData("LL", "No valid result");
-            return null;
+            telemetry.addData("PredRPM (Manual!!)", "%.0f", predictedRPM);
+            return predictedRPM;
         }
 
-        telemetry.addData("LL Pipeline", "Index=%d Type=%s",
-                result.getPipelineIndex(), result.getPipelineType());
-
-       
+        telemetry.addData("LL Pipeline", "Index=%d Type=%s", result.getPipelineIndex(), result.getPipelineType());       
 
         // ---- Trig distance using ty of the selected goal tag ----
         Double tyDeg = getTyToGoalTag(goalTagId, result);
         if (tyDeg == null) {
             telemetry.addData("TrigDist", "n/a (goal tag %d not in view)", goalTagId);
-            telemetry.addData("PredRPM", "n/a");
-            return null;
+            telemetry.addData("PredRPM (Manual!!)", "%.0f", predictedRPM);
+            return predictedRPM;
         }
 
         Double trigDistIn = trigDistanceToGoalInchesFromTy(tyDeg);
         if (trigDistIn == null) {
             telemetry.addData("TrigDist", "invalid (ty=%.2f°)", tyDeg);
-            telemetry.addData("PredRPM", "n/a");
-            return null;
+            telemetry.addData("PredRPM (Manual!!)", "%.0f", predictedRPM);
+            return predictedRPM;
         }
 
-        // Predicted RPM from the linear model (from the experiment)
-        double predictedRPM = RPM_SLOPE * trigDistIn + RPM_INTERCEPT;
+        // ---- Compute predicted RPM from model (overwrites manual fallback) ----
+        double predictedRPM = RPM_SLOPE * trigDistIn + RPM_INTERCEPT;   // Predicted RPM from the linear model (from the experiment)
         // double predictedRPM = RPM_A * Math.pow(RPM_B, trigDistIn);  // other option: Predicted RPM from exponential model: y = A * B^x
 
         predictedRPM = clamp(predictedRPM, PRED_RPM_MIN, PRED_RPM_MAX);
 
         telemetry.addData("TrigDist","%.1f in (Ty angle=%.1f°) to Goal %d", trigDistIn, tyDeg, goalTagId); 
         telemetry.addData("PredRPM", "%.0f RPM", predictedRPM);
+        telemetry.addData("ManualRPM", "%.0f (used only if goal not seen)", manualFallbackRPM);
 
         return predictedRPM;
     }
