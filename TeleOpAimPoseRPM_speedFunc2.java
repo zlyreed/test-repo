@@ -61,14 +61,14 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     // Source: community field map post (verify your LL coordinate frame matches).
     // Tag 20 (Blue): x=-1.482, y=-1.413, z=0.749 (in meters) / x=-58.35, y=-55.63, z=29.49 (in inches)
     // Tag 24 (Red):  x=-1.482, y= 1.413, z=0.749 (in meters) /x=-58.35, y=55.63, z=29.49 (in inches);
-    private static final double TAG20_X = -1.482;
+  /* private static final double TAG20_X = -1.482;
     private static final double TAG20_Y = -1.413;
     private static final double TAG20_Z =  0.749;
 
     private static final double TAG24_X = -1.482;
     private static final double TAG24_Y =  1.413;
     private static final double TAG24_Z =  0.749;
-
+*/
     // Unit conversion (if TAG coords & botpose are meters)
     private static final double M_TO_IN = 39.3700787;
 
@@ -238,14 +238,13 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
             Double trigDistIn = trigDistanceToGoalInchesFromTy(tyDeg);
 
             if (txDeg != null) {
-
+                
                 // If additional adjustment need
                 // txSetpoint = atan(offset / distance)
                 double txSetpointDeg = Math.toDegrees(Math.atan2(LL_LATERAL_OFFSET_IN, trigDistIn));
                 // Error we want to drive to zero:
                 double txErrorDeg = txDeg - txSetpointDeg;
                 turnAssist = clamp(txErrorDeg * AIM_KP, -AIM_MAX_TURN, AIM_MAX_TURN);
-
 
                // turnAssist = clamp(txDeg * AIM_KP, -AIM_MAX_TURN, AIM_MAX_TURN);
                 telemetry.addData("AimAssist", "ON tx=%.1f° turn=%.2f", txDeg, turnAssist);
@@ -280,13 +279,11 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
 
 
 
-    // =========================================================
+// =========================================================
 // LIMELIGHT TRIG DIST + PREDICTED RPM
 // Returns predicted RPM (Double) or gamepad1 Up to pick near shooting RPM or gamepad1 down to pick far shooting RPM
 // =========================================================
     private Double updateLimelightPoseAndDistanceTelemetry(int goalTagId) {
-
-
 
         // Feed yaw for better pose fusion
         // double yawDeg = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
@@ -311,6 +308,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
 
         // ---- Trig distance using ty of the selected goal tag ----
         Double tyDeg = getTyToGoalTag(goalTagId, result);
+        Double txDeg = getTxToGoalTag(goalTagId, result);
         if (tyDeg == null) {
             // Driver can select manual RPM anytime
             if (gamepad1.dpad_up)   manualFallbackRPM = MANUAL_RPM_UP;
@@ -344,9 +342,9 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
 
         predictedRPM = clamp(predictedRPM, PRED_RPM_MIN, PRED_RPM_MAX);
 
-        telemetry.addData("TrigDist","%.1f in (Ty angle=%.1f°) to Goal %d", trigDistIn, tyDeg, goalTagId);
+        telemetry.addData("TrigDist","%.1f in (Tx angle= %.1f, Ty angle=%.1f°) to Goal %d", trigDistIn, txDeg, tyDeg, goalTagId);
         telemetry.addData("PredRPM", "%.0f RPM", predictedRPM);
-        telemetry.addData("ManualRPM", "%.0f (used only if goal not seen)", manualFallbackRPM);
+        telemetry.addData("ManualRPM", "%.0f (Use only if goal not seen!!", manualFallbackRPM);
 
         return predictedRPM;
     }
@@ -356,7 +354,6 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
      * - gamepad2 Y toggles ON/OFF
      * - When toggled ON: set target RPM = latest predicted RPM (or fallback)
      * - While ON: runs motor using setVelocity()
-     * Pass predictedRPM from Limelight (may be null).
      */
 // =========================================================
 
@@ -393,7 +390,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
         double targetTicksPerSec = flywheelTargetRPM * TICKS_PER_REV / 60.0;
         mFW.setVelocity(targetTicksPerSec);
 
-        // LED green only when at speed, otherwise OFF
+        // Flywheel is ready: LED green only on when the flywheel is within a good speed range, otherwise OFF
         boolean atSpeed = Math.abs(currentRPM - flywheelTargetRPM) <= LED_RPM_TOL;
         led.setPosition(atSpeed ? LED_GREEN_POS : LED_OFF_POS);
 
