@@ -51,9 +51,9 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     private static final double GOAL_TAG_CENTER_HEIGHT_IN = 29.49; // measured in the field
 
     // Measure these on YOUR robot:
-    private static final double LL_LENS_HEIGHT_IN = 14;   // lens center height above tile (measured; original=12 inches); may need adjust the regression
+    private static final double LL_LENS_HEIGHT_IN = 14.5;   // lens center height above tile (measured; original=12 inches); may need adjust the regression
     private static final double LL_MOUNT_ANGLE_DEG = 0;  // camera pitch up from horizontal
-    //private static final double LL_LATERAL_OFFSET_IN = 6.5; // camera from the center of the robot (lateral; Y axis (Y+=left): -6.5 inches)
+    private static final double LL_LATERAL_OFFSET_IN = 4.5; // camera from the center of the robot (lateral; Y axis (Y+=left): -6.5 inches)
 
     // -------- Goal tag field poses (same units/frame as Limelight botpose) --------
     // Fill these with the correct DECODE field coordinates that match Limelight's coordinate system.
@@ -83,18 +83,18 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
 
     private static final double PRED_RPM_MIN = 1500;
     private static final double PRED_RPM_MAX = 5800;
-    
+
     private static final double MANUAL_RPM_UP = 3800;  // desired speed for near shooting
     private static final double MANUAL_RPM_DOWN = 5000;  // desired speed for far shooting
     private double flywheelTargetRPM = MANUAL_RPM_UP;    // start guess
-    private double lastPredictedRPM = MANUAL_RPM_UP;  // fallback if limelight is not avaible.    
+    private double lastPredictedRPM = MANUAL_RPM_UP;  // fallback if limelight is not avaible.
     private double manualFallbackRPM = MANUAL_RPM_UP;
-    
+
 
     // ---------------- LED light -------------------
     private static final double LED_GREEN_POS = 0.5; // Green
     private static final double LED_RED_POS = 0.277; // Red
-    private static final double LED_OFF_POS = 0.0;; // off (try 1 if 0 doesn't work); 
+    private static final double LED_OFF_POS = 0.0;; // off (try 1 if 0 doesn't work);
     private static final double LED_RPM_TOL = 150;  // speed tolerance
 
     // =========================
@@ -102,7 +102,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     // =========================
     private int goalTagId = BLUE_GOAL_TAG_ID; // toggle between blue/red
     private boolean flywheelOn = false;
-    
+
     // inital states for intake, ramp wheel 1 and ramp wheel 2
     private boolean intakeOn = false;
     private boolean rw1On = false;
@@ -110,7 +110,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     private boolean unjamOn = false;
 
     // RW2 pulse settings
-    private static final long RW2_PULSE_MS = 50;       // start 50ms; tune down or up later
+    private static final long RW2_PULSE_MS = 150;       // start 50ms; tune down or up later
     private static final double RW2_PULSE_PWR = 1.0;
 
     // Pulse state
@@ -148,7 +148,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
             // Hold-to-unjam override: gamepad2 X
             updateIntakeAndRampWheelControls();
 
-            // 4) Limelight:  trig distance + predicted RPM (if limelight data is not avaiable, press gamepad1 Up to pick near shooting RPM or gamepad1 down to pick far shooting RPM 
+            // 4) Limelight:  trig distance + predicted RPM (if limelight data is not avaiable, press gamepad1 Up to pick near shooting RPM or gamepad1 down to pick far shooting RPM
             Double predictedRPM = updateLimelightPoseAndDistanceTelemetry(goalTagId);
 
             // 5) Flywheel: sets the target RPM only when you toggle ON (Toggle flywheel with gamepad2 Y); LED shows Green at predicted RPM
@@ -233,21 +233,21 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
         if (aimAssistEnabled) {
             Double txDeg = getTxToGoalTag(goalTagId, result);
 
-            // ** If additional adjustment neeed
-            //Double tyDeg = getTyToGoalTag(goalTagId, result);
-            //Double trigDistIn = trigDistanceToGoalInchesFromTy(tyDeg);
+            // ** If additional adjustment need
+            Double tyDeg = getTyToGoalTag(goalTagId, result);
+            Double trigDistIn = trigDistanceToGoalInchesFromTy(tyDeg);
 
             if (txDeg != null) {
 
-                /* If additional adjustment neeed
+                // If additional adjustment need
                 // txSetpoint = atan(offset / distance)
                 double txSetpointDeg = Math.toDegrees(Math.atan2(LL_LATERAL_OFFSET_IN, trigDistIn));
                 // Error we want to drive to zero:
                 double txErrorDeg = txDeg - txSetpointDeg;
                 turnAssist = clamp(txErrorDeg * AIM_KP, -AIM_MAX_TURN, AIM_MAX_TURN);
-                */
 
-                turnAssist = clamp(txDeg * AIM_KP, -AIM_MAX_TURN, AIM_MAX_TURN);
+
+               // turnAssist = clamp(txDeg * AIM_KP, -AIM_MAX_TURN, AIM_MAX_TURN);
                 telemetry.addData("AimAssist", "ON tx=%.1f° turn=%.2f", txDeg, turnAssist);
             } else {
                 telemetry.addData("AimAssist", "ON (no goal tag in view)");
@@ -280,36 +280,45 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
 
 
 
-// =========================================================
+    // =========================================================
 // LIMELIGHT TRIG DIST + PREDICTED RPM
-// Returns predicted RPM (Double) or gamepad1 Up to pick near shooting RPM or gamepad1 down to pick far shooting RPM 
+// Returns predicted RPM (Double) or gamepad1 Up to pick near shooting RPM or gamepad1 down to pick far shooting RPM
 // =========================================================
     private Double updateLimelightPoseAndDistanceTelemetry(int goalTagId) {
 
-        // Driver can select manual RPM anytime
-        if (gamepad1.dpad_up)   manualFallbackRPM = MANUAL_RPM_UP;
-        if (gamepad1.dpad_down) manualFallbackRPM = MANUAL_RPM_DOWN;
 
-        // Default predictedRPM = manual, will be overwritten if we get a valid trig distance
-        double predictedRPM = clamp(manualFallbackRPM, PRED_RPM_MIN, PRED_RPM_MAX);
 
         // Feed yaw for better pose fusion
         // double yawDeg = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
         // limelight.updateRobotOrientation(yawDeg);
 
         LLResult result = limelight.getLatestResult();
-        
+
         if (result == null || !result.isValid()) {
+            // Driver can select manual RPM anytime
+            if (gamepad1.dpad_up)   manualFallbackRPM = MANUAL_RPM_UP;
+            if (gamepad1.dpad_down) manualFallbackRPM = MANUAL_RPM_DOWN;
+
+            // Default predictedRPM = manual, will be overwritten if we get a valid trig distance
+            double predictedRPM = clamp(manualFallbackRPM, PRED_RPM_MIN, PRED_RPM_MAX);
+
             telemetry.addData("LL", "No valid result");
             telemetry.addData("PredRPM (Manual!!)", "%.0f", predictedRPM);
             return predictedRPM;
         }
 
-        telemetry.addData("LL Pipeline", "Index=%d Type=%s", result.getPipelineIndex(), result.getPipelineType());       
+        telemetry.addData("LL Pipeline", "Index=%d Type=%s", result.getPipelineIndex(), result.getPipelineType());
 
         // ---- Trig distance using ty of the selected goal tag ----
         Double tyDeg = getTyToGoalTag(goalTagId, result);
         if (tyDeg == null) {
+            // Driver can select manual RPM anytime
+            if (gamepad1.dpad_up)   manualFallbackRPM = MANUAL_RPM_UP;
+            if (gamepad1.dpad_down) manualFallbackRPM = MANUAL_RPM_DOWN;
+
+            // Default predictedRPM = manual, will be overwritten if we get a valid trig distance
+            double predictedRPM = clamp(manualFallbackRPM, PRED_RPM_MIN, PRED_RPM_MAX);
+
             telemetry.addData("TrigDist", "n/a (goal tag %d not in view)", goalTagId);
             telemetry.addData("PredRPM (Manual!!)", "%.0f", predictedRPM);
             return predictedRPM;
@@ -317,6 +326,13 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
 
         Double trigDistIn = trigDistanceToGoalInchesFromTy(tyDeg);
         if (trigDistIn == null) {
+            // Driver can select manual RPM anytime
+            if (gamepad1.dpad_up)   manualFallbackRPM = MANUAL_RPM_UP;
+            if (gamepad1.dpad_down) manualFallbackRPM = MANUAL_RPM_DOWN;
+
+            // Default predictedRPM = manual, will be overwritten if we get a valid trig distance
+            double predictedRPM = clamp(manualFallbackRPM, PRED_RPM_MIN, PRED_RPM_MAX);
+
             telemetry.addData("TrigDist", "invalid (ty=%.2f°)", tyDeg);
             telemetry.addData("PredRPM (Manual!!)", "%.0f", predictedRPM);
             return predictedRPM;
@@ -328,7 +344,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
 
         predictedRPM = clamp(predictedRPM, PRED_RPM_MIN, PRED_RPM_MAX);
 
-        telemetry.addData("TrigDist","%.1f in (Ty angle=%.1f°) to Goal %d", trigDistIn, tyDeg, goalTagId); 
+        telemetry.addData("TrigDist","%.1f in (Ty angle=%.1f°) to Goal %d", trigDistIn, tyDeg, goalTagId);
         telemetry.addData("PredRPM", "%.0f RPM", predictedRPM);
         telemetry.addData("ManualRPM", "%.0f (used only if goal not seen)", manualFallbackRPM);
 
@@ -344,46 +360,46 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
      */
 // =========================================================
 
-private void applyFlywheelControl(Double predictedRPM) {
+    private void applyFlywheelControl(Double predictedRPM) {
 
-    // Read current RPM once (used for telemetry + LED)
-    double currentRPM = mFW.getVelocity() * 60.0 / TICKS_PER_REV;
+        // Read current RPM once (used for telemetry + LED)
+        double currentRPM = mFW.getVelocity() * 60.0 / TICKS_PER_REV;
 
-    // Track last good prediction for fallback
-    if (predictedRPM != null) {
-        lastPredictedRPM = predictedRPM;
-    }
-
-    // Toggle flywheel with gamepad2 Y (only changes state/target)
-    if (gamepad2.yWasPressed()) {
-        flywheelOn = !flywheelOn;
-
-        if (flywheelOn) {
-            double target = (predictedRPM != null) ? predictedRPM : lastPredictedRPM;
-            flywheelTargetRPM = clamp(target, PRED_RPM_MIN, PRED_RPM_MAX);
+        // Track last good prediction for fallback
+        if (predictedRPM != null) {
+            lastPredictedRPM = predictedRPM;
         }
-    }
 
-    // Apply outputs EVERY loop
-    if (!flywheelOn) {
-        mFW.setPower(0.0);
-        led.setPosition(LED_OFF_POS);
-        telemetry.addData("Flywheel", "OFF (RPM=%.0f)", currentRPM);
+        // Toggle flywheel with gamepad2 Y (only changes state/target)
+        if (gamepad2.yWasPressed()) {
+            flywheelOn = !flywheelOn;
+
+            if (flywheelOn) {
+                double target = (predictedRPM != null) ? predictedRPM : lastPredictedRPM;
+                flywheelTargetRPM = clamp(target, PRED_RPM_MIN, PRED_RPM_MAX);
+            }
+        }
+
+        // Apply outputs EVERY loop
+        if (!flywheelOn) {
+            mFW.setPower(0.0);
+            led.setPosition(LED_OFF_POS);
+            telemetry.addData("Flywheel", "OFF (RPM=%.0f)", currentRPM);
+            telemetry.addData("PredRPM(last)", "%.0f", lastPredictedRPM);
+            return;
+        }
+
+        // Flywheel ON: keep commanding velocity
+        double targetTicksPerSec = flywheelTargetRPM * TICKS_PER_REV / 60.0;
+        mFW.setVelocity(targetTicksPerSec);
+
+        // LED green only when at speed, otherwise OFF
+        boolean atSpeed = Math.abs(currentRPM - flywheelTargetRPM) <= LED_RPM_TOL;
+        led.setPosition(atSpeed ? LED_GREEN_POS : LED_OFF_POS);
+
+        telemetry.addData("Flywheel", "ON  Target=%.0f  Current=%.0f", flywheelTargetRPM, currentRPM);
         telemetry.addData("PredRPM(last)", "%.0f", lastPredictedRPM);
-        return;
     }
-
-    // Flywheel ON: keep commanding velocity
-    double targetTicksPerSec = flywheelTargetRPM * TICKS_PER_REV / 60.0;
-    mFW.setVelocity(targetTicksPerSec);
-
-    // LED green only when at speed, otherwise OFF
-    boolean atSpeed = Math.abs(currentRPM - flywheelTargetRPM) <= LED_RPM_TOL;
-    led.setPosition(atSpeed ? LED_GREEN_POS : LED_OFF_POS);
-
-    telemetry.addData("Flywheel", "ON  Target=%.0f  Current=%.0f", flywheelTargetRPM, currentRPM);
-    telemetry.addData("PredRPM(last)", "%.0f", lastPredictedRPM);
-}
 
 
     // =====================Intake, Rampwheel 1 &2 control:=============================
@@ -392,82 +408,82 @@ private void applyFlywheelControl(Double predictedRPM) {
      * - Ramp Wheel 2 forward toggle: gamepad2 A; pulse move: gamepad 2, left bumper
      * - Hold-to-unjam override: gamepad2 X
      */
-   // ====================================================================================
+    // ====================================================================================
 
     private void updateIntakeAndRampWheelControls() {
 
-    long now = System.currentTimeMillis();
+        long now = System.currentTimeMillis();
 
-    // ===================== TOGGLES (buttons) =====================
+        // ===================== TOGGLES (buttons) =====================
 
-    // Intake toggle: gamepad2 RB
-    if (gamepad2.rightBumperWasPressed()) {
-        intakeOn = !intakeOn;
+        // Intake toggle: gamepad2 RB
+        if (gamepad2.rightBumperWasPressed()) {
+            intakeOn = !intakeOn;
+        }
+
+        // Ramp Wheel 1 toggle: gamepad1 RB
+        if (gamepad1.rightBumperWasPressed()) {
+            rw1On = !rw1On;
+        }
+
+        // Ramp Wheel 2 toggle: gamepad2 A
+        if (gamepad2.aWasPressed()) {
+            rw2On = !rw2On;
+        }
+
+        // ===================== RW2 PULSE (gamepad2 LEFT BUMPER) =====================
+        if (gamepad2.leftBumperWasPressed()) {
+            rw2PulseActive = true;
+            rw2PulseStartMs = now;
+        }
+
+        // pulse timeout
+        if (rw2PulseActive && (now - rw2PulseStartMs >= RW2_PULSE_MS)) {
+            rw2PulseActive = false;
+        }
+
+        // ===================== UNJAM (hold X) =====================
+        boolean unjamHeld = gamepad2.x;  // hold-to-unjam
+
+        // ===================== OUTPUTS (set power once) =====================
+
+        // Intake
+        double intakePower = intakeOn ? 1.0 : 0.0;
+        sI.setPower(intakePower);
+
+        // Default RW powers
+        double rw1Power = rw1On ? 1.0 : 0.0;
+        double rw2Power = rw2On ? 1.0 : 0.0;
+
+        // Priority 1: unjam overrides everything
+        if (unjamHeld) {
+            rw1Power = -0.25;
+            rw2Power = -0.25;
+        }
+        // Priority 2: pulse overrides normal RW2 toggle
+        else if (rw2PulseActive) {
+            rw2Power = RW2_PULSE_PWR;
+
+            // Optional: pause RW1 during pulse to reduce pushing the next ball
+            // rw1Power = 0.0;
+        }
+
+        sRW1.setPower(rw1Power);
+        sRW2.setPower(rw2Power);
+
+        // ===================== TELEMETRY =====================
+        telemetry.addData("Intake", intakeOn ? "ON" : "OFF");
+        telemetry.addData("RW1", rw1On ? "ON" : "OFF");
+        telemetry.addData("RW2", rw2On ? "ON" : "OFF");
+        telemetry.addData("RW2 Pulse", rw2PulseActive ? "ACTIVE" : "OFF");
+        telemetry.addData("Unjam", unjamHeld ? "HELD" : "OFF");
     }
-
-    // Ramp Wheel 1 toggle: gamepad1 RB
-    if (gamepad1.rightBumperWasPressed()) {
-        rw1On = !rw1On;
-    }
-
-    // Ramp Wheel 2 toggle: gamepad2 A
-    if (gamepad2.aWasPressed()) {
-        rw2On = !rw2On;
-    }
-
-    // ===================== RW2 PULSE (gamepad2 LEFT BUMPER) =====================
-    if (gamepad2.leftBumperWasPressed()) {
-        rw2PulseActive = true;
-        rw2PulseStartMs = now;
-    }
-
-    // pulse timeout
-    if (rw2PulseActive && (now - rw2PulseStartMs >= RW2_PULSE_MS)) {
-        rw2PulseActive = false;
-    }
-
-    // ===================== UNJAM (hold X) =====================
-    boolean unjamHeld = gamepad2.x;  // hold-to-unjam
-
-    // ===================== OUTPUTS (set power once) =====================
-
-    // Intake
-    double intakePower = intakeOn ? 1.0 : 0.0;
-    sI.setPower(intakePower);
-
-    // Default RW powers
-    double rw1Power = rw1On ? 1.0 : 0.0;
-    double rw2Power = rw2On ? 1.0 : 0.0;
-
-    // Priority 1: unjam overrides everything
-    if (unjamHeld) {
-        rw1Power = -0.25;
-        rw2Power = -0.25;
-    }
-    // Priority 2: pulse overrides normal RW2 toggle
-    else if (rw2PulseActive) {
-        rw2Power = RW2_PULSE_PWR;
-
-        // Optional: pause RW1 during pulse to reduce pushing the next ball
-        // rw1Power = 0.0;
-    }
-
-    sRW1.setPower(rw1Power);
-    sRW2.setPower(rw2Power);
-
-    // ===================== TELEMETRY =====================
-    telemetry.addData("Intake", intakeOn ? "ON" : "OFF");
-    telemetry.addData("RW1", rw1On ? "ON" : "OFF");
-    telemetry.addData("RW2", rw2On ? "ON" : "OFF");
-    telemetry.addData("RW2 Pulse", rw2PulseActive ? "ACTIVE" : "OFF");
-    telemetry.addData("Unjam", unjamHeld ? "HELD" : "OFF");
-}
 
 
     // =========================================================
     // Utility and Helper Functions
     // =========================================================
-   
+
     // *********** make sure the value within a defined range (e.g., do not exceed the max achievable speed for flywheel)
     private static double clamp(double v, double lo, double hi) {
         return Math.max(lo, Math.min(hi, v));
@@ -491,7 +507,7 @@ private void applyFlywheelControl(Double predictedRPM) {
 
 
     //************** Returns ty (vertical angle) to the chosen goal tag, or null if not detected.
-    // * Uses the LLResult you already fetched this loop (preferred), so you don't call getLatestResult() twice.     
+    // * Uses the LLResult you already fetched this loop (preferred), so you don't call getLatestResult() twice.
     private Double getTyToGoalTag(int desiredId, LLResult result) {
         if (result == null || !result.isValid()) return null;
 
@@ -507,7 +523,7 @@ private void applyFlywheelControl(Double predictedRPM) {
     }
 
     //****************** Trig distance estimate to the goal tag center (inches) using camera geometry.
-     /* tan(a1 + a2) = (h2 - h1) / d
+    /* tan(a1 + a2) = (h2 - h1) / d
      * d = (h2 - h1) / tan(a1 + a2)
      *
      * where:
