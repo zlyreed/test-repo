@@ -61,14 +61,14 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     // Source: community field map post (verify your LL coordinate frame matches).
     // Tag 20 (Blue): x=-1.482, y=-1.413, z=0.749 (in meters) / x=-58.35, y=-55.63, z=29.49 (in inches)
     // Tag 24 (Red):  x=-1.482, y= 1.413, z=0.749 (in meters) /x=-58.35, y=55.63, z=29.49 (in inches);
-  /* private static final double TAG20_X = -1.482;
+    private static final double TAG20_X = -1.482;
     private static final double TAG20_Y = -1.413;
     private static final double TAG20_Z =  0.749;
 
     private static final double TAG24_X = -1.482;
     private static final double TAG24_Y =  1.413;
     private static final double TAG24_Z =  0.749;
-*/
+
     // Unit conversion (if TAG coords & botpose are meters)
     private static final double M_TO_IN = 39.3700787;
 
@@ -103,7 +103,6 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     private int goalTagId = BLUE_GOAL_TAG_ID; // toggle between blue/red
     private boolean flywheelOn = false;
 
-   
     // inital states for intake, ramp wheel 1 and ramp wheel 2
     private boolean intakeOn = false;
     private boolean rw1On = false;
@@ -117,11 +116,6 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     // Pulse state
     private boolean rw2PulseActive = false;
     private long rw2PulseStartMs = 0;
-    private static final boolean PAUSE_RW1_DURING_PULSE = true; // Optional: pause RW1 during RW2 pulse (recommended)
-
-    //Other states    
-    private static final double INTAKE_HOLD_PWR = 0.18; // Intake hold power to prevent balls falling out while waiting (tune 0.10–0.30)
-    private static final double RW2_GATE_HOLD_PWR = -0.08; // RW2 gate (tiny reverse) to prevent early touch (tune -0.05 to -0.12; set 0.0 if it jams)    
 
     // For field-centric drive
     private double initYawDeg = 0;
@@ -150,15 +144,15 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
             // 2) Manual drive (field-centric) + optional aim assist overlay
             driveFieldCentricWithOptionalAimAssist();
 
-            // 3) Limelight:  trig distance + predicted RPM (if limelight data is not avaiable, press gamepad1 Up to pick near shooting RPM or gamepad1 down to pick far shooting RPM
-            Double predictedRPM = updateLimelightPoseAndDistanceTelemetry(goalTagId);
-
-            // 4) Flywheel: sets the target RPM only when you toggle ON (Toggle flywheel with gamepad2 Y); LED shows Green at predicted RPM
-            applyFlywheelControl(predictedRPM);
-
-            // 5) Intake, Ramp wheel 1&2: - Intake toggle: gamepad2 RB; Ramp Wheel 1 toggle: gamepad1 RB; Ramp Wheel 2 forward toggle: gamepad2 A
+            // 3) Intake, Ramp wheel 1&2: - Intake toggle: gamepad2 RB; Ramp Wheel 1 toggle: gamepad1 RB; Ramp Wheel 2 forward toggle: gamepad2 A
             // Hold-to-unjam override: gamepad2 X
             updateIntakeAndRampWheelControls();
+
+            // 4) Limelight:  trig distance + predicted RPM (if limelight data is not avaiable, press gamepad1 Up to pick near shooting RPM or gamepad1 down to pick far shooting RPM
+            Double predictedRPM = updateLimelightPoseAndDistanceTelemetry(goalTagId);
+
+            // 5) Flywheel: sets the target RPM only when you toggle ON (Toggle flywheel with gamepad2 Y); LED shows Green at predicted RPM
+            applyFlywheelControl(predictedRPM);
 
             telemetry.update();
         }
@@ -244,13 +238,14 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
             Double trigDistIn = trigDistanceToGoalInchesFromTy(tyDeg);
 
             if (txDeg != null) {
-                
+
                 // If additional adjustment need
                 // txSetpoint = atan(offset / distance)
                 double txSetpointDeg = Math.toDegrees(Math.atan2(LL_LATERAL_OFFSET_IN, trigDistIn));
                 // Error we want to drive to zero:
                 double txErrorDeg = txDeg - txSetpointDeg;
                 turnAssist = clamp(txErrorDeg * AIM_KP, -AIM_MAX_TURN, AIM_MAX_TURN);
+
 
                // turnAssist = clamp(txDeg * AIM_KP, -AIM_MAX_TURN, AIM_MAX_TURN);
                 telemetry.addData("AimAssist", "ON tx=%.1f° turn=%.2f", txDeg, turnAssist);
@@ -285,11 +280,13 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
 
 
 
-// =========================================================
+    // =========================================================
 // LIMELIGHT TRIG DIST + PREDICTED RPM
 // Returns predicted RPM (Double) or gamepad1 Up to pick near shooting RPM or gamepad1 down to pick far shooting RPM
 // =========================================================
     private Double updateLimelightPoseAndDistanceTelemetry(int goalTagId) {
+
+
 
         // Feed yaw for better pose fusion
         // double yawDeg = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
@@ -314,7 +311,6 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
 
         // ---- Trig distance using ty of the selected goal tag ----
         Double tyDeg = getTyToGoalTag(goalTagId, result);
-        Double txDeg = getTxToGoalTag(goalTagId, result);
         if (tyDeg == null) {
             // Driver can select manual RPM anytime
             if (gamepad1.dpad_up)   manualFallbackRPM = MANUAL_RPM_UP;
@@ -348,9 +344,9 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
 
         predictedRPM = clamp(predictedRPM, PRED_RPM_MIN, PRED_RPM_MAX);
 
-        telemetry.addData("TrigDist","%.1f in (Tx angle= %.1f, Ty angle=%.1f°) to Goal %d", trigDistIn, txDeg, tyDeg, goalTagId);
+        telemetry.addData("TrigDist","%.1f in (Ty angle=%.1f°) to Goal %d", trigDistIn, tyDeg, goalTagId);
         telemetry.addData("PredRPM", "%.0f RPM", predictedRPM);
-        telemetry.addData("ManualRPM", "%.0f (Use only if goal not seen!!", manualFallbackRPM);
+        telemetry.addData("ManualRPM", "%.0f (used only if goal not seen)", manualFallbackRPM);
 
         return predictedRPM;
     }
@@ -360,6 +356,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
      * - gamepad2 Y toggles ON/OFF
      * - When toggled ON: set target RPM = latest predicted RPM (or fallback)
      * - While ON: runs motor using setVelocity()
+     * Pass predictedRPM from Limelight (may be null).
      */
 // =========================================================
 
@@ -396,7 +393,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
         double targetTicksPerSec = flywheelTargetRPM * TICKS_PER_REV / 60.0;
         mFW.setVelocity(targetTicksPerSec);
 
-        // Flywheel is ready: LED green only on when the flywheel is within a good speed range, otherwise OFF
+        // LED green only when at speed, otherwise OFF
         boolean atSpeed = Math.abs(currentRPM - flywheelTargetRPM) <= LED_RPM_TOL;
         led.setPosition(atSpeed ? LED_GREEN_POS : LED_OFF_POS);
 
@@ -410,116 +407,77 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
      * - Ramp Wheel 1 toggle: gamepad1 RB
      * - Ramp Wheel 2 forward toggle: gamepad2 A; pulse move: gamepad 2, left bumper
      * - Hold-to-unjam override: gamepad2 X
-
-    - Keep intake running at a low “HOLD” power when flywheel is ON but not ready (prevents balls falling out).
-    - Pause RW1 during “not ready” (removes stack pressure that causes early touch).
-    - Use RW2 as a gate: apply a tiny reverse hold power when flywheel is ON but not ready (prevents the top ball from creeping into the flywheel).
-    - RW2 pulse on gamepad2 LEFT BUMPER still works.
-    
-    Priority order:
-    - Unjam (X held) overrides everything
-    - RW2 pulse overrides gate/toggles
-    - Otherwise, not-ready gating behavior applies when flywheelOn && !flywheelReady     
      */
     // ====================================================================================
-    
-private void updateIntakeAndRampWheelControls() {
 
-    long now = System.currentTimeMillis();
+    private void updateIntakeAndRampWheelControls() {
 
-    // ===== Flywheel ready check (matches your LED logic) =====
-    double currentRPM = mFW.getVelocity() * 60.0 / TICKS_PER_REV;
-    boolean flywheelReady = flywheelOn && (Math.abs(currentRPM - flywheelTargetRPM) <= LED_RPM_TOL);
+        long now = System.currentTimeMillis();
 
-    // ===================== TOGGLES (buttons) =====================
+        // ===================== TOGGLES (buttons) =====================
 
-    // Intake toggle: gamepad2 RB
-    if (gamepad2.rightBumperWasPressed()) {
-        intakeOn = !intakeOn;
-    }
-
-    // Ramp Wheel 1 toggle: gamepad1 RB
-    if (gamepad1.rightBumperWasPressed()) {
-        rw1On = !rw1On;
-    }
-
-    // Ramp Wheel 2 toggle: gamepad2 A
-    if (gamepad2.aWasPressed()) {
-        rw2On = !rw2On;
-    }
-
-    // ===================== RW2 PULSE (gamepad2 LEFT BUMPER) =====================
-    if (gamepad2.leftBumperWasPressed()) {
-        rw2PulseActive = true;
-        rw2PulseStartMs = now;
-    }
-
-    // pulse timeout
-    if (rw2PulseActive && (now - rw2PulseStartMs >= RW2_PULSE_MS)) {
-        rw2PulseActive = false;
-    }
-
-    // ===================== UNJAM (hold X) =====================
-    boolean unjamHeld = gamepad2.x;  // hold-to-unjam
-
-    // ===================== BASE OUTPUTS (from toggles) =====================
-    double intakePower = intakeOn ? 1.0 : 0.0;
-    double rw1Power    = rw1On ? 1.0 : 0.0;
-    double rw2Power    = rw2On ? 1.0 : 0.0;
-
-    // ===================== PRIORITY LOGIC =====================
-
-    // Priority 1: UNJAM overrides everything
-    if (unjamHeld) {
-        // You can choose to reverse intake slightly too, but safest is off:
-        intakePower = 0.0;
-        rw1Power = -0.25;
-        rw2Power = -0.25;
-    }
-    else {
-        // --- If flywheel is ON but NOT ready: prevent "early touch" ---
-        // Keep intake gently ON so balls don't fall out,
-        // stop RW1 to remove stack pressure,
-        // gate RW2 with tiny reverse so top ball can't creep into flywheel.
-        if (flywheelOn && !flywheelReady) {
-
-            if (intakeOn) intakePower = INTAKE_HOLD_PWR;  // gentle hold (instead of full push)
-            rw1Power = 0.0;                               // remove stack pressure
-            rw2Power = RW2_GATE_HOLD_PWR;                 // gate at the top (set 0.0 if it jams)
+        // Intake toggle: gamepad2 RB
+        if (gamepad2.rightBumperWasPressed()) {
+            intakeOn = !intakeOn;
         }
 
-        // Priority 2: RW2 pulse overrides gate/toggle (used for staging or shooting)
-        if (rw2PulseActive) {
+        // Ramp Wheel 1 toggle: gamepad1 RB
+        if (gamepad1.rightBumperWasPressed()) {
+            rw1On = !rw1On;
+        }
+
+        // Ramp Wheel 2 toggle: gamepad2 A
+        if (gamepad2.aWasPressed()) {
+            rw2On = !rw2On;
+        }
+
+        // ===================== RW2 PULSE (gamepad2 LEFT BUMPER) =====================
+        if (gamepad2.leftBumperWasPressed()) {
+            rw2PulseActive = true;
+            rw2PulseStartMs = now;
+        }
+
+        // pulse timeout
+        if (rw2PulseActive && (now - rw2PulseStartMs >= RW2_PULSE_MS)) {
+            rw2PulseActive = false;
+        }
+
+        // ===================== UNJAM (hold X) =====================
+        boolean unjamHeld = gamepad2.x;  // hold-to-unjam
+
+        // ===================== OUTPUTS (set power once) =====================
+
+        // Intake
+        double intakePower = intakeOn ? 1.0 : 0.0;
+        sI.setPower(intakePower);
+
+        // Default RW powers
+        double rw1Power = rw1On ? 1.0 : 0.0;
+        double rw2Power = rw2On ? 1.0 : 0.0;
+
+        // Priority 1: unjam overrides everything
+        if (unjamHeld) {
+            rw1Power = -0.25;
+            rw2Power = -0.25;
+        }
+        // Priority 2: pulse overrides normal RW2 toggle
+        else if (rw2PulseActive) {
             rw2Power = RW2_PULSE_PWR;
 
-            // Strongly recommended: pause RW1 during pulse so the 2nd ball doesn't creep
-            if (PAUSE_RW1_DURING_PULSE) {
-                rw1Power = 0.0;
-            }
-
-            // Optional: keep intake in HOLD during pulse too (reduces pressure)
-            if (intakeOn) {
-                intakePower = Math.min(intakePower, INTAKE_HOLD_PWR);
-            }
+            // Optional: pause RW1 during pulse to reduce pushing the next ball
+            // rw1Power = 0.0;
         }
+
+        sRW1.setPower(rw1Power);
+        sRW2.setPower(rw2Power);
+
+        // ===================== TELEMETRY =====================
+        telemetry.addData("Intake", intakeOn ? "ON" : "OFF");
+        telemetry.addData("RW1", rw1On ? "ON" : "OFF");
+        telemetry.addData("RW2", rw2On ? "ON" : "OFF");
+        telemetry.addData("RW2 Pulse", rw2PulseActive ? "ACTIVE" : "OFF");
+        telemetry.addData("Unjam", unjamHeld ? "HELD" : "OFF");
     }
-
-    // ===================== APPLY OUTPUTS ONCE =====================
-    sI.setPower(intakePower);
-    sRW1.setPower(rw1Power);
-    sRW2.setPower(rw2Power);
-
-    // ===================== TELEMETRY =====================
-    telemetry.addData("FlywheelReady", flywheelReady);
-    telemetry.addData("IntakePwr", "%.2f", intakePower);
-    telemetry.addData("RW1Pwr", "%.2f", rw1Power);
-    telemetry.addData("RW2Pwr", "%.2f", rw2Power);
-    telemetry.addData("RW2 Pulse", rw2PulseActive ? "ACTIVE" : "OFF");
-    telemetry.addData("Unjam", unjamHeld ? "HELD" : "OFF");
-}
-
-    
-    
 
 
     // =========================================================
