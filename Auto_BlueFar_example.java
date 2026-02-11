@@ -46,7 +46,7 @@ public class Demo_BlueGoal_Column1_Intake3_Shoot3 extends LinearOpMode {
     // LIMELIGHT AIMING - tune these
     // ----------------------------
     public static int BLUE_GOAL_TAG_ID = 20;         // common reference for Blue goal tag :contentReference[oaicite:3]{index=3}
-    public static int LL_PIPELINE_BLUE_GOAL = 0;     // set your Limelight pipeline 0 = Blue goal-only
+    public static int LL_PIPELINE_BLUE_GOAL = 3;     // set your Limelight pipeline 3 = Blue goal-only
     public static double AIM_TOL_DEG = 1.0;          // stop aiming when |tx| < this
     public static double AIM_KP = 0.02;              // turn power per deg of tx
     public static double AIM_MAX_TURN = 0.6;
