@@ -26,8 +26,8 @@ import java.util.List;
 //        then gate-hold, restage, recover, and repeat.
 //        Auto & manual never fight over servos.
 
-@TeleOp(name = "TeleOpAimPoseRPM_speedFunc", group = "Robot")
-public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
+@TeleOp(name = "TeleOpAimPoseRPM_speedFunc_autoShoot", group = "Robot")
+public class TeleOpAimPoseRPM_speedFunc_autoShoot extends LinearOpMode {
 
     // =========================
     // Hardware
@@ -102,8 +102,8 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     // =========================
     // Manual-mode “hold / gate” tuning (prevents early touch while flywheel not ready)
     // =========================
-    private static final double INTAKE_HOLD_PWR = 0.18;      // keeps balls from falling out (tune 0.10–0.30)
-    private static final double RW2_GATE_HOLD_PWR = -0.08;   // tiny reverse gate (set 0.0 if jams)
+    private static final double INTAKE_HOLD_PWR = 0.8;      // keeps balls from falling out (tune 0.10–0.30)
+    private static final double RW2_GATE_HOLD_PWR = -0.05;   // tiny reverse gate (set 0.0 if jams)
 
     // =========================
     // AUTO-SHOOT (hold RIGHT TRIGGER) + shot detection via RPM dip
@@ -116,13 +116,13 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
     private static final long   MAX_FEED_TIME_MS = 500;   // safety timeout
 
     // Auto-shoot timing
-    private static final long GATE_HOLD_MS   = 180;
-    private static final long RESTAGE_MS     = 320;
-    private static final long RECOVER_MIN_MS = 150;
+    private static final long GATE_HOLD_MS   = 100;
+    private static final long RESTAGE_MS     = 250;
+    private static final long RECOVER_MIN_MS = 80;
 
     // Auto restage powers
-    private static final double INTAKE_RESTAGE_PWR = 0.60;
-    private static final double RW1_RESTAGE_PWR    = 1.00;
+    private static final double INTAKE_RESTAGE_PWR = 1.0;
+    private static final double RW1_RESTAGE_PWR    = 0.8;
 
     private enum AutoShootState { IDLE, WAIT_READY, FEED_UNTIL_SHOT, GATE_HOLD, RESTAGE, WAIT_RECOVER }
     private AutoShootState autoState = AutoShootState.IDLE;
@@ -538,7 +538,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
             case FEED_UNTIL_SHOT:
                 // Feed into flywheel until dip detected or timeout
                 sI.setPower(intakeOn ? INTAKE_HOLD_PWR : 0.0);
-                sRW1.setPower(0.0);
+                sRW1.setPower(RW1_RESTAGE_PWR);
                 sRW2.setPower(RW2_PULSE_PWR);
 
                 if (!shotDetectedThisCycle && detectShotDip(rpmNow)) {
@@ -555,7 +555,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
 
             case GATE_HOLD:
                 sI.setPower(intakeOn ? INTAKE_HOLD_PWR : 0.0);
-                sRW1.setPower(0.0);
+                sRW1.setPower(RW1_RESTAGE_PWR);
                 sRW2.setPower(RW2_GATE_HOLD_PWR);
 
                 if (dt >= GATE_HOLD_MS) {
@@ -571,7 +571,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
 
                 if (dt >= RESTAGE_MS) {
                     sI.setPower(intakeOn ? INTAKE_HOLD_PWR : 0.0);
-                    sRW1.setPower(0.0);
+                    sRW1.setPower(RW1_RESTAGE_PWR);
                     sRW2.setPower(RW2_GATE_HOLD_PWR);
                     enterAutoState(AutoShootState.WAIT_RECOVER);
                 }
@@ -579,7 +579,7 @@ public class TeleOpAimPoseRPM_speedFunc extends LinearOpMode {
 
             case WAIT_RECOVER:
                 sI.setPower(intakeOn ? INTAKE_HOLD_PWR : 0.0);
-                sRW1.setPower(0.0);
+                sRW1.setPower(RW1_RESTAGE_PWR);
                 sRW2.setPower(RW2_GATE_HOLD_PWR);
 
                 if (dt >= RECOVER_MIN_MS && ready) {
