@@ -36,7 +36,7 @@ public class TeleOp_AimAssist extends LinearOpMode {
     private Limelight3A limelight;
 
     // =========================
-    // Constants (student tunes these)
+    // Constants 
     // =========================
     // TODO: update IDs for your field/game
     private static final int BLUE_GOAL_TAG_ID = 20;
