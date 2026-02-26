@@ -4,7 +4,6 @@ import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
-import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
@@ -12,8 +11,19 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.IMU;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-
 import java.util.List;
+
+/* Notes: 
+Check TODO items to make sure they fit your situation.
+
+Quick tuning advice:
+- If the robot turns the wrong direction when aiming: change turnAssist = txDeg * AIM_KP to turnAssist = -txDeg * AIM_KP
+- If it oscillates/wiggles near center:increase TX_DEADBAND_DEG a bit (e.g., 1 → 2) or lower AIM_KP (e.g., 0.02 → 0.015)
+- If it’s too weak/slow to center:raise AIM_KP slightly (0.02 → 0.025) or raise AIM_MAX_TURN slightly (0.35 → 0.45)
+
+*/
+
+
 @Disabled
 @TeleOp(name = "TeleOp_AimAssist", group = "Robot")
 public class TeleOp_AimAssist extends LinearOpMode {
@@ -26,23 +36,25 @@ public class TeleOp_AimAssist extends LinearOpMode {
     private Limelight3A limelight;
 
     // =========================
-    // Constants (tune)
+    // Constants (student tunes these)
     // =========================
-    private static final int BLUE_GOAL_TAG_ID = 20;          // change if needed
-    private static final int RED_GOAL_TAG_ID  = 24;          // change if needed
+    // TODO: update IDs for your field/game
+    private static final int BLUE_GOAL_TAG_ID = 20;
+    private static final int RED_GOAL_TAG_ID  = 24;
 
-    // Aim assist tuning
-    private static final double AIM_KP = 0.02;               // turning gain (deg -> turn power)
-    private static final double AIM_MAX_TURN = 0.35;         // clamp turn power
+    // Aim assist tuning knobs
+    private static final double AIM_KP = 0.02;        // deg -> turn power
+    private static final double AIM_MAX_TURN = 0.35;  // clamp assist
 
+    // Optional: small deadband to stop “hunting” near center
+    private static final double TX_DEADBAND_DEG = 1.0;
 
     // =========================
     // State
     // =========================
-    private int goalTagId = BLUE_GOAL_TAG_ID;                // toggle between blue/red
+    private int goalTagId = BLUE_GOAL_TAG_ID;
 
-
-    // For field-centric drive
+    // Field-centric offset (we treat the start heading as “field forward”)
     private double initYawDeg = 0;
 
     @Override
@@ -50,20 +62,22 @@ public class TeleOp_AimAssist extends LinearOpMode {
 
         initHardware();
 
+        // Save the heading at init as our "field forward"
         initYawDeg = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
 
         telemetry.addLine("Ready. Drive to position.");
+        telemetry.addLine("X=Blue goal, B=Red goal, Hold LT = Aim Assist");
         telemetry.update();
 
         waitForStart();
 
         while (opModeIsActive()) {
 
-            // 1) Pick which goal tag you are aiming at
+            // 1) Choose which goal tag to aim at
             if (gamepad1.xWasPressed()) goalTagId = BLUE_GOAL_TAG_ID;
             if (gamepad1.bWasPressed()) goalTagId = RED_GOAL_TAG_ID;
 
-            // 2) Manual drive (field-centric) + optional aim assist overlay
+            // 2) Drive + optional aim assist overlay
             driveFieldCentricWithOptionalAimAssist();
 
             telemetry.update();
@@ -76,6 +90,7 @@ public class TeleOp_AimAssist extends LinearOpMode {
     // HARDWARE INIT
     // =========================================================
     private void initHardware() {
+        // TODO: match these names to the RC config
         mFL = hardwareMap.get(DcMotor.class, "leftFront");
         mFR = hardwareMap.get(DcMotor.class, "rightFront");
         mBL = hardwareMap.get(DcMotor.class, "leftBack");
@@ -83,13 +98,13 @@ public class TeleOp_AimAssist extends LinearOpMode {
 
         imu = hardwareMap.get(IMU.class, "imu");
 
-        // Directions: keep your working settings
+        // TODO: these directions are robot-specific (must verify)
         mFL.setDirection(DcMotor.Direction.FORWARD);
         mFR.setDirection(DcMotor.Direction.FORWARD);
         mBL.setDirection(DcMotor.Direction.REVERSE);
         mBR.setDirection(DcMotor.Direction.FORWARD);
 
-        // IMU hub mounting
+        // TODO: IMU hub mounting (must match their hub orientation)
         RevHubOrientationOnRobot orientation = new RevHubOrientationOnRobot(
                 RevHubOrientationOnRobot.LogoFacingDirection.RIGHT,
                 RevHubOrientationOnRobot.UsbFacingDirection.BACKWARD
@@ -97,16 +112,16 @@ public class TeleOp_AimAssist extends LinearOpMode {
         imu.initialize(new IMU.Parameters(orientation));
 
         // Limelight
+        // TODO: match this name to the config, and pipeline index to AprilTag pipeline
         limelight = hardwareMap.get(Limelight3A.class, "LimeLight");
         limelight.pipelineSwitch(0);  // AprilTag pipeline
         limelight.start();
     }
 
     // =========================================================
-    // 1) DRIVE + AIM ASSIST
-    //    - Manual field-centric drive is always active
-    //    - If driver holds LEFT TRIGGER, we add "turn" correction
-    //      to center the chosen goal tag (goalTagId).
+    // DRIVE + AIM ASSIST
+    // - Manual field-centric drive is always active
+    // - Hold LEFT TRIGGER to add turn correction that centers the goal tag
     // =========================================================
     private void driveFieldCentricWithOptionalAimAssist() {
 
@@ -114,11 +129,11 @@ public class TeleOp_AimAssist extends LinearOpMode {
         double yawDeg = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
         double yawDeltaDeg = yawDeg - initYawDeg;
 
-        double x = gamepad1.left_stick_x;
-        double y = -gamepad1.left_stick_y;
+        double x = gamepad1.left_stick_x;      // strafe
+        double y = -gamepad1.left_stick_y;     // forward (invert stick)
         double turnManual = gamepad1.right_stick_x;
 
-        // Rotate (x,y) by -yawDelta
+        // Rotate (x,y) by -yawDelta 
         double cosA = Math.cos(Math.toRadians(-yawDeltaDeg));
         double sinA = Math.sin(Math.toRadians(-yawDeltaDeg));
         double xRot = (x * cosA) - (y * sinA);
@@ -131,8 +146,13 @@ public class TeleOp_AimAssist extends LinearOpMode {
         if (aimAssistEnabled) {
             Double txDeg = getTxToGoalTag(goalTagId);
             if (txDeg != null) {
+
+                // Deadband: ignore tiny errors to reduce “wiggle”
+                if (Math.abs(txDeg) < TX_DEADBAND_DEG) txDeg = 0.0;
+
                 // If tag is to the right (positive tx), turn right (positive turn)
                 turnAssist = clamp(txDeg * AIM_KP, -AIM_MAX_TURN, AIM_MAX_TURN);
+
                 telemetry.addData("AimAssist", "ON tx=%.1f° turn=%.2f", txDeg, turnAssist);
             } else {
                 telemetry.addData("AimAssist", "ON (no goal tag in view)");
@@ -165,7 +185,6 @@ public class TeleOp_AimAssist extends LinearOpMode {
 
     /**
      * Returns tx (horizontal angle) to the chosen goal tag, or null if not detected.
-     * Uses FiducialResults list from LLResult. :contentReference[oaicite:1]{index=1}
      */
     private Double getTxToGoalTag(int desiredId) {
         LLResult result = limelight.getLatestResult();
@@ -182,11 +201,7 @@ public class TeleOp_AimAssist extends LinearOpMode {
         return null;
     }
 
-
-
-    // =========================================================
     // Utility
-    // =========================================================
     private static double clamp(double v, double lo, double hi) {
         return Math.max(lo, Math.min(hi, v));
     }
