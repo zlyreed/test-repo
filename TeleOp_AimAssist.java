@@ -24,7 +24,7 @@ Quick tuning advice:
 */
 
 
-@Disabled
+
 @TeleOp(name = "TeleOp_AimAssist", group = "Robot")
 public class TeleOp_AimAssist extends LinearOpMode {
 
