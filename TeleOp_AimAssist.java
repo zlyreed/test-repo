@@ -183,9 +183,12 @@ public class TeleOp_AimAssist extends LinearOpMode {
         telemetry.addData("IMU Yaw", "%.1f°", yawDeg);
     }
 
-    /**
-     * Returns tx (horizontal angle) to the chosen goal tag, or null if not detected.
-     */
+
+    // =========================================================
+    // Helper functions
+    // =========================================================
+    
+    // The function Returns tx (horizontal angle) to the chosen goal tag, or null if not detected.     
     private Double getTxToGoalTag(int desiredId) {
         LLResult result = limelight.getLatestResult();
         if (result == null || !result.isValid()) return null;
@@ -200,8 +203,9 @@ public class TeleOp_AimAssist extends LinearOpMode {
         }
         return null;
     }
+    
 
-    // Utility
+    // A small safety helper function that limits a value to stay within a range.
     private static double clamp(double v, double lo, double hi) {
         return Math.max(lo, Math.min(hi, v));
     }
