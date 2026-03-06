@@ -1,0 +1,855 @@
+package org.firstinspires.ftc.teamcode;
+
+import android.graphics.Color;
+
+import com.qualcomm.hardware.limelightvision.LLResult;
+import com.qualcomm.hardware.limelightvision.LLResultTypes;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+
+import com.qualcomm.robotcore.hardware.ColorSensor;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.IMU;
+import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.TouchSensor;
+
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+
+import java.util.List;
+
+@TeleOp(name = "uscTeleOP_V2", group = "Robot")
+public class uscTeleOP_V2 extends LinearOpMode {
+
+    // =========================
+    // Hardware
+    // =========================
+    public DcMotor mFL, mFR, mBL, mBR;
+    public DcMotor mI;          // Intake
+    public DcMotor mLM;         // Lotus Motus (indexer)
+    public DcMotorEx mFW;       // Flywheel (velocity capable)
+    public Servo sG;            // Gate (servo)
+    public Servo sF;            // Flicker (servo)
+    public IMU imu;
+
+    public Limelight3A limelight;
+    public Servo sLED;
+
+    public ColorSensor color;
+    public TouchSensor touch;
+
+    // =========================
+    // Constants (tune)
+    // =========================
+    private static final double TICKS_PER_REV = 28;       // change to your motor spec!
+    private static final int BLUE_GOAL_TAG_ID = 20;
+    private static final int RED_GOAL_TAG_ID  = 24;
+
+    // Aim assist tuning
+    private static final double AIM_KP = 0.02;
+    private static final double AIM_MAX_TURN = 0.35;
+
+    // -------- Trig distance constants (inches + degrees) --------
+    private static final double GOAL_TAG_CENTER_HEIGHT_IN = 29.49; // measured in the field
+    private static final double LL_LENS_HEIGHT_IN = 13.5;          // measured on robot
+    private static final double LL_MOUNT_ANGLE_DEG = 0;            // camera pitch up from horizontal
+    private static final double LL_LATERAL_OFFSET_IN = 5;        // camera from robot center (inches)
+
+    // -------- Flywheel speed prediction model (distanceIn inches -> rpm) --------
+    // Linear regression: y=5.51221x+3022.06487
+    private static final double RPM_SLOPE = 5.51221; //may need to redo equation
+    private static final double RPM_INTERCEPT = 3022.06487;
+
+    private static final double PRED_RPM_MIN = 1500;
+    private static final double PRED_RPM_MAX = 5800;
+
+    // Manual fallback RPMs if goal not seen
+    private static final double MANUAL_RPM_UP = 3300;    // near
+    private static final double MANUAL_RPM_DOWN = 3900;  // far
+
+    // ---------------- LED light -------------------
+    private static final double LED_GREEN_POS = 0.5;   // Green
+    private static final double LED_OFF_POS = 0.0;     // off (try 1 if 0 doesn't work)
+    private static final double LED_RPM_TOL = 150;     // speed tolerance
+
+
+    // =========================
+    // Servo positions (from your V4)
+    // =========================
+    private static final double OUT_GATE = 0.55;
+    private static final double IN_GATE = -1.0;
+
+    private static final double OUT_FLICKER = -1.0;
+    private static final double IN_FLICKER = 1.0;
+
+    // =========================
+    // State
+    // =========================
+    private int goalTagId = BLUE_GOAL_TAG_ID;
+    private boolean flywheelOn = false;
+
+    // Flywheel targets
+    private double flywheelTargetRPM = MANUAL_RPM_UP;
+    private double lastPredictedRPM = MANUAL_RPM_UP;
+    private double manualFallbackRPM = MANUAL_RPM_UP;
+    // Field-centric
+    private double initYawRad;
+
+    // =========================
+    // State: Intake/Indexer/Sorting (from colorSensorV4)
+    // =========================
+    private double counterIntakeToggle = 1;
+
+    private String slot1Color = "None";
+    private String slot2Color = "None";
+    private String slot3Color = "None";
+
+    // Set your desired shoot pattern here (same as your V4)
+    private String color1 = "Green";
+    private String color2 = "Purple";
+    private String color3 = "Green";
+
+    private int artifactCounter = 0;
+    private int shootPhase = 0;
+    private boolean touchWasPressed = false;
+    private boolean dpadWasPressed = false;
+    private boolean shootPositioned = false;
+    private boolean readyToShoot = false;
+
+    private int orientation = 0;     // 0/1/2 orientation state
+    private int stepSize = 180;      // encoder step size
+    private int currentTarget = 0;   // running encoder target (do not reset mid-cycle)
+
+    // HSV
+    private float[] hsvValues = {0F, 0F, 0F};
+    private static final double SCALE_FACTOR = 255;
+
+    @Override
+    public void runOpMode() {
+
+        initHardware();
+
+        initYawRad = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+        //output color order
+        String colorOrder = getColorOrderFromTag();
+        if ("GPP".equals(colorOrder)) {
+            color1="Green"; color2="Purple"; color3="Purple";
+        } else if ("PGP".equals(colorOrder)) {
+            color1="Purple"; color2="Green"; color3="Purple";
+        } else if ("PPG".equals(colorOrder)) {
+            color1="Purple"; color2="Purple"; color3="Green";
+        }
+
+        telemetry.addLine("Ready.");
+        telemetry.addLine("Drive: gp1 LS (x/y), RSx (turn). Hold gp1 LT for aim assist.");
+        telemetry.addLine("Goal tag select: gp1 X=Blue(20), B=Red(24)");
+        telemetry.addLine("Flywheel toggle: gp2 Y (uses predicted RPM when tag seen; dpad up/down manual RPM if no tag)");
+        telemetry.addLine("Intake motor toggle: gp2 Y (NOTE: flywheel also on gp2 Y in your old code; see mapping below)");
+        telemetry.addLine("Intake trigger: touch sensor OR gp1 dpad_up (auto-index + detect color)");
+        telemetry.addLine("Force ready-to-shoot early: gp1 A");
+        telemetry.addLine("FIRE: gp2 RB (spins flywheel + flick)");
+        telemetry.addLine("Manual flick: gp2 LB");
+        telemetry.addLine("Manual nudge indexer: gp1 LB/RB");
+        telemetry.addLine("Reset cycle: gp1 B");
+        telemetry.addData("Color Order", colorOrder);
+        telemetry.update();
+
+        waitForStart();
+
+        while (opModeIsActive()) {
+
+            // =========================
+            // 0) Goal tag selection
+            // =========================
+            if (gamepad1.xWasPressed()) goalTagId = BLUE_GOAL_TAG_ID;
+            if (gamepad1.bWasPressed()) goalTagId = RED_GOAL_TAG_ID;
+
+            // =========================
+            // 1) Drive + optional aim assist overlay
+            // =========================
+            driveFieldCentricWithOptionalAimAssist();
+
+            // =========================
+            // 2) Limelight trig distance + predicted RPM (or manual fallback)
+            // =========================
+            Double predictedRPM = updateLimelightPoseAndDistanceTelemetry(goalTagId);
+
+            // =========================
+            // 3) Flywheel control (toggle gp2 Y)
+            // =========================
+            applyFlywheelControl(predictedRPM);
+
+            // =========================
+            // 4) Intake motor toggle (I moved this to gp2 BACK to avoid gp2 Y conflict)
+            //    - Your colorSensorV4 used gp2 Y; your NEWROBOT also used gp2 Y.
+            //    - Keeping BOTH on gp2 Y causes chaos, so:
+            //      Intake toggle = gp2 BACK
+            // =========================
+            if (gamepad2.backWasPressed()) {
+                counterIntakeToggle += 1;
+            }
+            if (counterIntakeToggle % 2 == 0) {
+                mI.setPower(1.0);
+            } else {
+                mI.setPower(0.0);
+            }
+
+            // =========================
+            // 5) Index + detect color trigger (touch OR gp1 dpad_up)
+            // =========================
+            boolean intakeTriggered = false;
+
+            if (touch.isPressed() && !touchWasPressed && !readyToShoot && artifactCounter < 3) {
+                intakeTriggered = true;
+            }
+            touchWasPressed = touch.isPressed();
+
+            if (gamepad1.dpad_up && !dpadWasPressed && !readyToShoot && artifactCounter < 3) {
+                intakeTriggered = true;
+            }
+            dpadWasPressed = gamepad1.dpad_up;
+
+            if (intakeTriggered) {
+                doOneIndexStepAndDetectColor();
+            }
+
+            // =========================
+            // 6) Manual ready-to-shoot (for <3 balls)
+            // =========================
+            if (gamepad1.aWasPressed() && artifactCounter > 0 && shootPhase == 0) {
+                readyToShoot = true;
+                shootPhase = 1;
+                shootPositioned = false;
+            }
+
+            // =========================
+            // 7) Shooting positioning logic (choose nearest slot matching target color)
+            // =========================
+            if (readyToShoot && shootPhase > 0 && !shootPositioned) {
+                positionIndexerForCurrentShootPhase();
+            }
+
+            // =========================
+            // 8) FIRE (gp2 RB)
+            // =========================
+            if (shootPositioned && gamepad2.rightBumperWasPressed()) {
+
+                // If flywheel isn't ON, spin briefly (keeps your old "always works" behavior)
+                if (!flywheelOn) {
+                    mFW.setPower(1.0);
+                }
+
+                sleep(500);
+
+                sF.setPosition(IN_FLICKER);
+                sleep(300);
+                sF.setPosition(OUT_FLICKER);
+                sleep(300);
+
+                shootPositioned = false;
+
+                if (shootPhase < 3) {
+                    shootPhase++;
+                } else {
+                    shootPhase = 0;
+                    artifactCounter = 0;
+                    readyToShoot = false;
+                    if (!flywheelOn) {
+                        mFW.setPower(0.0);
+                    }
+                }
+            }
+
+            // =========================
+            // 9) Manual flick (gp2 LB)
+            // =========================
+            if (gamepad2.leftBumperWasPressed()) {
+                sF.setPosition(IN_FLICKER);
+                sleep(300);
+                sF.setPosition(OUT_FLICKER);
+            }
+
+            // =========================
+            // 10) Manual nudge indexer (gp1 bumpers)
+            // =========================
+            if (gamepad1.leftBumperWasPressed()) {
+                currentTarget += 50;
+                mLM.setTargetPosition(currentTarget);
+                mLM.setPower(0.5);
+            }
+            if (gamepad1.rightBumperWasPressed()) {
+                currentTarget -= 50;
+                mLM.setTargetPosition(currentTarget);
+                mLM.setPower(0.5);
+            }
+
+            // =========================
+            // 11) Gate toggle (moved to gp2 A to avoid gp2 RB = FIRE)
+            // =========================
+            if (gamepad2.aWasPressed()) {
+                // simple toggle based on current position guess
+                // if you want “true” toggle state, track a boolean instead
+                double gatePos = sG.getPosition();
+                if (Math.abs(gatePos - OUT_GATE) < 0.2) {
+                    sG.setPosition(IN_GATE);
+                } else {
+                    sG.setPosition(OUT_GATE);
+                }
+            }
+
+            // =========================
+            // 12) Reset cycle (gp1 y) [Note: It was gp1 x, and we changed to gp1 y (since gp1 x is used to select goalTagId)
+            // =========================
+            if (gamepad1.yWasPressed()) {
+                fullResetCycle();
+            }
+
+            // =========================
+            // Telemetry
+            // =========================
+            Color.RGBToHSV(
+                    (int) (color.red() * SCALE_FACTOR),
+                    (int) (color.green() * SCALE_FACTOR),
+                    (int) (color.blue() * SCALE_FACTOR),
+                    hsvValues
+            );
+
+            telemetry.addData("--- AIM/FW ---", "");
+            telemetry.addData("Goal Tag", goalTagId);
+            telemetry.addData("FlywheelOn", flywheelOn);
+            telemetry.addData("TargetRPM", "%.0f", flywheelTargetRPM);
+            telemetry.addData("CurrentRPM", "%.0f", getFlywheelRPM());
+
+            telemetry.addData("--- STATE ---", "");
+            telemetry.addData("artifacts", artifactCounter);
+            telemetry.addData("orientation", orientation);
+            telemetry.addData("shoot phase", shootPhase);
+            telemetry.addData("positioned", shootPositioned);
+            telemetry.addData("ready", readyToShoot);
+
+            telemetry.addData("--- SLOTS ---", "");
+            telemetry.addData("slot1", slot1Color);
+            telemetry.addData("slot2", slot2Color);
+            telemetry.addData("slot3", slot3Color);
+            telemetry.addData("pattern", color1 + " " + color2 + " " + color3);
+
+            telemetry.addData("--- MOTOR ---", "");
+            telemetry.addData("mLM pos", mLM.getCurrentPosition());
+            telemetry.addData("mLM target", currentTarget);
+            telemetry.addData("IntakeOn", (counterIntakeToggle % 2 == 0));
+
+            telemetry.addData("--- SENSOR ---", "");
+            telemetry.addData("hue", hsvValues[0]);
+            telemetry.addData("R", color.red());
+            telemetry.addData("G", color.green());
+            telemetry.addData("B", color.blue());
+            telemetry.addData("touch", touch.isPressed());
+
+            telemetry.update();
+        }
+
+        limelight.stop();
+    }
+
+    // =========================================================
+    // HARDWARE INIT
+    // =========================================================
+    private void initHardware() {
+
+        mFL = hardwareMap.get(DcMotor.class, "leftFront");
+        mFR = hardwareMap.get(DcMotor.class, "rightFront");
+        mBL = hardwareMap.get(DcMotor.class, "leftBack");
+        mBR = hardwareMap.get(DcMotor.class, "rightBack");
+
+        mI = hardwareMap.get(DcMotor.class, "mI");
+        mLM = hardwareMap.get(DcMotor.class, "mLM");
+        mFW = hardwareMap.get(DcMotorEx.class, "mFW");
+
+        sG = hardwareMap.get(Servo.class, "sG");
+        sF = hardwareMap.get(Servo.class, "sF");
+
+        imu = hardwareMap.get(IMU.class, "imu");
+
+        limelight = hardwareMap.get(Limelight3A.class, "LimeLight");
+        sLED = hardwareMap.get(Servo.class, "sLED");
+
+        color = hardwareMap.get(ColorSensor.class, "color");
+        touch = hardwareMap.get(TouchSensor.class, "touch");
+
+        // Directions (keep your working settings)
+        mFL.setDirection(DcMotor.Direction.REVERSE);
+        mFR.setDirection(DcMotor.Direction.FORWARD);
+        mBL.setDirection(DcMotor.Direction.REVERSE);
+        mBR.setDirection(DcMotor.Direction.FORWARD);
+
+        mI.setDirection(DcMotor.Direction.FORWARD);
+        mLM.setDirection(DcMotor.Direction.REVERSE);
+        mFW.setDirection(DcMotor.Direction.FORWARD);
+
+        sG.setDirection(Servo.Direction.REVERSE);
+        sF.setDirection(Servo.Direction.REVERSE);
+
+        // Indexer in RUN_TO_POSITION (from your colorSensorV4)
+        mLM.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        mLM.setTargetPosition(0);
+        mLM.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        mLM.setPower(0.0);
+        mLM.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+        // Flywheel velocity capable
+        mFW.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        // Servo init
+        sG.setPosition(OUT_GATE);
+        sF.setPosition(OUT_FLICKER);
+        sLED.setPosition(LED_OFF_POS);
+
+        // IMU init
+        RevHubOrientationOnRobot orientation = new RevHubOrientationOnRobot(
+                RevHubOrientationOnRobot.LogoFacingDirection.RIGHT,
+                RevHubOrientationOnRobot.UsbFacingDirection.FORWARD
+        );
+        imu.initialize(new IMU.Parameters(orientation));
+
+        // Limelight init
+        // Keep your “start with AprilTag pipeline” behavior; you can switch index as needed
+        limelight.pipelineSwitch(7); // your NEWROBOT used 7; your V4 used 0
+        limelight.start();
+    }
+
+// -------------------------
+// Color Order From AprilTag (With Telemetry)
+// -------------------------
+    private String getColorOrderFromTag() {
+
+        limelight.pipelineSwitch(3);
+
+        LLResult result = limelight.getLatestResult();
+
+        String colorOrder = "UNKNOWN";
+
+        if (result != null && result.isValid()
+                && result.getFiducialResults() != null
+                && !result.getFiducialResults().isEmpty()) {
+
+            int tagID = result.getFiducialResults().get(0).getFiducialId();
+
+            switch (tagID) {
+                case 21:
+                    colorOrder = "GPP";
+                    break;
+
+                case 22:
+                    colorOrder = "PGP";
+                    break;
+
+                case 23:
+                    colorOrder = "PPG";
+                    break;
+            }
+
+            telemetry.addData("Detected Tag ID", tagID);
+        }
+
+        telemetry.addData("Color Order", colorOrder);
+        //telemetry.update();
+
+        limelight.pipelineSwitch(7);
+
+        return colorOrder;
+    }
+
+    // =========================================================
+    // DRIVE + AIM ASSIST
+    // =========================================================
+    private void driveFieldCentricWithOptionalAimAssist() {
+
+        // Field-centric drive from IMU
+        double yawRad = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+        double yawDeltaRad = yawRad - initYawRad;
+
+        double x = gamepad1.left_stick_x;
+        double y = -gamepad1.left_stick_y;
+        double turnManual = gamepad1.right_stick_x;
+
+        // Rotate (x,y) by -yawDelta
+        double cosA = Math.cos(-yawDeltaRad);
+        double sinA = Math.sin(-yawDeltaRad);
+        double xRot = (x * cosA) - (y * sinA);
+        double yRot = (x * sinA) + (y * cosA);
+
+        // Optional aim assist: hold left trigger
+        double turnAssist = 0.0;
+        boolean aimAssistEnabled = gamepad1.left_trigger > 0.2;
+
+        LLResult result = limelight.getLatestResult();
+
+        if (aimAssistEnabled) {
+            Double txDeg = getTxToGoalTag(goalTagId, result);
+
+            // If additional adjustment is used: need ty + trig distance
+            Double tyDeg = getTyToGoalTag(goalTagId, result);
+            Double trigDistIn = (tyDeg != null) ? trigDistanceToGoalInchesFromTy(tyDeg) : null;
+
+            if (txDeg != null && trigDistIn != null) {
+                // txSetpoint = atan(offset / distance)
+                double txSetpointDeg = Math.toDegrees(Math.atan2(LL_LATERAL_OFFSET_IN, trigDistIn));
+                //double txErrorDeg = txDeg - txSetpointDeg;
+                double txErrorDeg = txDeg;
+                turnAssist = clamp(txErrorDeg * AIM_KP, -AIM_MAX_TURN, AIM_MAX_TURN);
+
+                telemetry.addData("AimAssist", "ON tx=%.1f° set=%.1f° err=%.1f° turn=%.2f",
+                        txDeg, txSetpointDeg, txErrorDeg, turnAssist);
+            } else if (txDeg != null) {
+                // Fall back to simple tx=0 targeting if distance not available
+                turnAssist = clamp(txDeg * AIM_KP, -AIM_MAX_TURN, AIM_MAX_TURN);
+                telemetry.addData("AimAssist", "ON tx=%.1f° turn=%.2f (no trig dist)", txDeg, turnAssist);
+            } else {
+                telemetry.addData("AimAssist", "ON (no goal tag in view)");
+            }
+        } else {
+            telemetry.addData("AimAssist", "OFF");
+        }
+
+        double turn = turnManual + turnAssist;
+
+        // Mecanum mixing
+        double pFL = yRot + xRot + turn;
+        double pFR = yRot - xRot - turn;
+        double pBL = yRot - xRot + turn;
+        double pBR = yRot + xRot - turn;
+
+        // Normalize
+        double max = Math.max(Math.max(Math.abs(pFL), Math.abs(pFR)),
+                Math.max(Math.abs(pBL), Math.abs(pBR)));
+        if (max > 1.0) { pFL /= max; pFR /= max; pBL /= max; pBR /= max; }
+
+        mFL.setPower(pFL);
+        mFR.setPower(pFR);
+        mBL.setPower(pBL);
+        mBR.setPower(pBR);
+
+        telemetry.addData("Goal Tag", goalTagId);
+        telemetry.addData("IMU Yaw", "%.1f°", yawRad);
+    }
+
+    // =========================================================
+    // LIMELIGHT TRIG DIST + PREDICTED RPM (preserved)
+    // =========================================================
+    private Double updateLimelightPoseAndDistanceTelemetry(int goalTagId) {
+
+        LLResult result = limelight.getLatestResult();
+
+        if (result == null || !result.isValid()) {
+
+            if (gamepad1.dpad_up) manualFallbackRPM = MANUAL_RPM_UP;
+            if (gamepad1.dpad_down) manualFallbackRPM = MANUAL_RPM_DOWN;
+
+            double predictedRPM = clamp(manualFallbackRPM, PRED_RPM_MIN, PRED_RPM_MAX);
+
+            telemetry.addData("LL", "No valid result");
+            telemetry.addData("PredRPM (Manual!!)", "%.0f", predictedRPM);
+            return predictedRPM;
+        }
+
+        Double tyDeg = getTyToGoalTag(goalTagId, result);
+        Double txDeg = getTxToGoalTag(goalTagId, result);
+
+        if (tyDeg == null) {
+            if (gamepad1.dpad_up) manualFallbackRPM = MANUAL_RPM_UP;
+            if (gamepad1.dpad_down) manualFallbackRPM = MANUAL_RPM_DOWN;
+
+            double predictedRPM = clamp(manualFallbackRPM, PRED_RPM_MIN, PRED_RPM_MAX);
+
+            telemetry.addData("TrigDist", "n/a (goal tag %d not in view)", goalTagId);
+            telemetry.addData("PredRPM (Manual!!)", "%.0f", predictedRPM);
+            return predictedRPM;
+        }
+
+        Double trigDistIn = trigDistanceToGoalInchesFromTy(tyDeg);
+        if (trigDistIn == null) {
+            if (gamepad1.dpad_up) manualFallbackRPM = MANUAL_RPM_UP;
+            if (gamepad1.dpad_down) manualFallbackRPM = MANUAL_RPM_DOWN;
+
+            double predictedRPM = clamp(manualFallbackRPM, PRED_RPM_MIN, PRED_RPM_MAX);
+
+            telemetry.addData("TrigDist", "invalid (ty=%.2f°)", tyDeg);
+            telemetry.addData("PredRPM (Manual!!)", "%.0f", predictedRPM);
+            return predictedRPM;
+        }
+
+        double predictedRPM = RPM_SLOPE * trigDistIn + RPM_INTERCEPT;
+        predictedRPM = clamp(predictedRPM, PRED_RPM_MIN, PRED_RPM_MAX);
+
+        telemetry.addData("TrigDist", "%.1f in (Tx=%.1f Ty=%.1f) to Goal %d",
+                trigDistIn, (txDeg != null ? txDeg : 999.0), tyDeg, goalTagId);
+        telemetry.addData("PredRPM", "%.0f RPM", predictedRPM);
+        telemetry.addData("ManualRPM", "%.0f (use only if goal not seen)", manualFallbackRPM);
+
+        return predictedRPM;
+    }
+
+    // =========================================================
+    // FLYWHEEL CONTROL (toggle gp2 Y) (preserved)
+    // =========================================================
+    private void applyFlywheelControl(Double predictedRPM) {
+
+        double currentRPM = getFlywheelRPM();
+
+        if (predictedRPM != null) {
+            lastPredictedRPM = predictedRPM;
+        }
+
+        if (gamepad2.yWasPressed()) {
+            flywheelOn = !flywheelOn;
+
+            if (flywheelOn) {
+                double target = (predictedRPM != null) ? predictedRPM : lastPredictedRPM;
+                flywheelTargetRPM = clamp(target, PRED_RPM_MIN, PRED_RPM_MAX);
+            }
+        }
+
+        if (!flywheelOn) {
+            mFW.setPower(0.0);
+            sLED.setPosition(LED_OFF_POS);
+            telemetry.addData("Flywheel", "OFF (RPM=%.0f)", currentRPM);
+            return;
+        }
+
+        double targetTicksPerSec = flywheelTargetRPM * TICKS_PER_REV / 60.0;
+        mFW.setVelocity(targetTicksPerSec);
+
+        boolean atSpeed = Math.abs(currentRPM - flywheelTargetRPM) <= LED_RPM_TOL;
+        sLED.setPosition(atSpeed ? LED_GREEN_POS : LED_OFF_POS);
+
+        telemetry.addData("Flywheel", "ON  Target=%.0f  Current=%.0f", flywheelTargetRPM, currentRPM);
+        telemetry.addData("AtSpeed", atSpeed ? "YES" : "NO");
+    }
+
+    // =========================================================
+    // SORTING HELPERS (from colorSensorV4)
+    // =========================================================
+    private void doOneIndexStepAndDetectColor() {
+
+        sleep(800);
+
+        // Move forward 1 step using running target
+        currentTarget += stepSize;
+        mLM.setTargetPosition(currentTarget);
+        mLM.setPower(0.5);
+        while (mLM.isBusy() && opModeIsActive()) {
+            idle();
+        }
+        mLM.setPower(0);
+        sleep(200);
+
+        // Read color
+        Color.RGBToHSV(
+                (int) (color.red() * SCALE_FACTOR),
+                (int) (color.green() * SCALE_FACTOR),
+                (int) (color.blue() * SCALE_FACTOR),
+                hsvValues
+        );
+        float hue = hsvValues[0];
+
+        String detected = "None";
+        if (hue >= 100 && hue <= 180) {
+            detected = "Green";
+        } else if (hue >= 200 && hue <= 270) {
+            detected = "Purple";
+        }
+
+        // Retry if nothing detected
+        int retries = 0;
+        while ("None".equals(detected) && retries < 10 && opModeIsActive()) {
+            sleep(100);
+            Color.RGBToHSV(
+                    (int) (color.red() * SCALE_FACTOR),
+                    (int) (color.green() * SCALE_FACTOR),
+                    (int) (color.blue() * SCALE_FACTOR),
+                    hsvValues
+            );
+            hue = hsvValues[0];
+            if (hue >= 100 && hue <= 180) {
+                detected = "Green";
+            } else if (hue >= 200 && hue <= 270) {
+                detected = "Purple";
+            }
+            retries++;
+        }
+
+        if (!"None".equals(detected)) {
+            if (artifactCounter == 0) {
+                slot1Color = detected;
+            } else if (artifactCounter == 1) {
+                slot2Color = detected;
+            } else if (artifactCounter == 2) {
+                slot3Color = detected;
+            }
+            artifactCounter++;
+        }
+
+        orientation = (orientation + 1) % 3;
+
+        if (artifactCounter == 3) {
+            readyToShoot = true;
+            shootPhase = 1;
+            shootPositioned = false;
+        }
+    }
+
+    private void positionIndexerForCurrentShootPhase() {
+
+        String targetColor = "None";
+        if (shootPhase == 1) targetColor = color1;
+        if (shootPhase == 2) targetColor = color2;
+        if (shootPhase == 3) targetColor = color3;
+
+        int stepsForSlot1 = 0;
+        int stepsForSlot2 = 0;
+        int stepsForSlot3 = 0;
+
+        if (orientation == 0) {
+            stepsForSlot1 = 2;
+            stepsForSlot2 = 0;
+            stepsForSlot3 = 1;
+        } else if (orientation == 1) {
+            stepsForSlot1 = 1;
+            stepsForSlot2 = 2;
+            stepsForSlot3 = 0;
+        } else if (orientation == 2) {
+            stepsForSlot1 = 0;
+            stepsForSlot2 = 1;
+            stepsForSlot3 = 2;
+        }
+
+        int bestSteps = 99;
+        int bestSlot = -1;
+
+        if (targetColor.equals(slot1Color) && stepsForSlot1 < bestSteps) {
+            bestSteps = stepsForSlot1;
+            bestSlot = 1;
+        }
+        if (targetColor.equals(slot2Color) && stepsForSlot2 < bestSteps) {
+            bestSteps = stepsForSlot2;
+            bestSlot = 2;
+        }
+        if (targetColor.equals(slot3Color) && stepsForSlot3 < bestSteps) {
+            bestSteps = stepsForSlot3;
+            bestSlot = 3;
+        }
+
+        if (bestSlot != -1) {
+
+            if (bestSlot == 1) slot1Color = "None";
+            if (bestSlot == 2) slot2Color = "None";
+            if (bestSlot == 3) slot3Color = "None";
+
+            if (bestSteps > 0) {
+                currentTarget += bestSteps * stepSize;
+                mLM.setTargetPosition(currentTarget);
+                mLM.setPower(0.5);
+                while (mLM.isBusy() && opModeIsActive()) {
+                    idle();
+                }
+                mLM.setPower(0);
+                sleep(100);
+                orientation = (orientation + bestSteps) % 3;
+            }
+
+            shootPositioned = true;
+
+        } else {
+            if (shootPhase < 3) {
+                shootPhase++;
+            } else {
+                shootPhase = 0;
+                artifactCounter = 0;
+                readyToShoot = false;
+                shootPositioned = false;
+            }
+        }
+    }
+
+    private void fullResetCycle() {
+        shootPhase = 0;
+        artifactCounter = 0;
+        readyToShoot = false;
+        shootPositioned = false;
+
+        slot1Color = "None";
+        slot2Color = "None";
+        slot3Color = "None";
+
+        orientation = 0;
+        currentTarget = 0;
+
+        if (!flywheelOn) {
+            mFW.setPower(0.0);
+        }
+
+        mLM.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        mLM.setTargetPosition(0);
+        mLM.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        mLM.setPower(0.0);
+
+        sF.setPosition(OUT_FLICKER);
+        sG.setPosition(OUT_GATE);
+    }
+
+    // =========================================================
+    // Helpers (Aim + Math)
+    // =========================================================
+    private double getFlywheelRPM() {
+        return mFW.getVelocity() * 60.0 / TICKS_PER_REV;
+    }
+
+    private static double clamp(double v, double lo, double hi) {
+        return Math.max(lo, Math.min(hi, v));
+    }
+
+    private Double getTxToGoalTag(int desiredId, LLResult result) {
+        if (result == null || !result.isValid()) return null;
+
+        List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
+        if (fiducials == null || fiducials.isEmpty()) return null;
+
+        for (LLResultTypes.FiducialResult f : fiducials) {
+            if (f.getFiducialId() == desiredId) {
+                return f.getTargetXDegrees();
+            }
+        }
+        return null;
+    }
+
+    private Double getTyToGoalTag(int desiredId, LLResult result) {
+        if (result == null || !result.isValid()) return null;
+
+        List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
+        if (fiducials == null || fiducials.isEmpty()) return null;
+
+        for (LLResultTypes.FiducialResult f : fiducials) {
+            if (f.getFiducialId() == desiredId) {
+                return f.getTargetYDegrees();
+            }
+        }
+        return null;
+    }
+
+    private Double trigDistanceToGoalInchesFromTy(double tyDeg) {
+        double totalAngleDeg = LL_MOUNT_ANGLE_DEG + tyDeg;
+        double totalAngleRad = Math.toRadians(totalAngleDeg);
+
+        double heightDiffIn = GOAL_TAG_CENTER_HEIGHT_IN - LL_LENS_HEIGHT_IN;
+
+        double tanVal = Math.tan(totalAngleRad);
+        if (Math.abs(tanVal) < 1e-6) return null;
+
+        double dIn = heightDiffIn / tanVal;
+
+        if (dIn <= 0) return null;
+        return dIn;
+    }
+}
