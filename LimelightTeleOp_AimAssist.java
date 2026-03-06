@@ -144,12 +144,14 @@ public class LimelightTeleOp extends LinearOpMode {
                 LLResult result = limelight.getLatestResult();
                 if (result != null && result.isValid()) {
                     // Find the tag you care about (example: pick one ID)
-                    int desiredId = 20; // TODO change (Blue goal)
+                   
                     List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
             
                     if (fiducials != null) {
                         for (LLResultTypes.FiducialResult f : fiducials) {
-                            if (f.getFiducialId() == desiredId) {
+                            
+                                 int id = f.getFiducialId();
+                                 if (id == 20 || id == 24) {                                
                                 double tx = f.getTargetXDegrees();
                                 // optional deadband
                                 if (Math.abs(tx) < 1.0) tx = 0;
