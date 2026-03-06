@@ -153,7 +153,7 @@ public class LimelightTeleOp extends LinearOpMode {
                                 double tx = f.getTargetXDegrees();
                                 // optional deadband
                                 if (Math.abs(tx) < 1.0) tx = 0;
-                                turnAssist = clamp(tx * 0.02, -0.35, 0.35);
+                                turnAssist = Math.max(-0.35, Math.min(0.35, tx * 0.02));
                                 break;
                             }
                         }
