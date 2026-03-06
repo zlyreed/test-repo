@@ -143,21 +143,26 @@ public class LimelightTeleOp extends LinearOpMode {
             if (aimAssistEnabled) {
                 LLResult result = limelight.getLatestResult();
                 if (result != null && result.isValid()) {
-                    // Find the tag you care about (example: pick one ID)
-                   
-                    List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
             
+                    List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
                     if (fiducials != null) {
+            
+                        Double bestTx = null;
+            
                         for (LLResultTypes.FiducialResult f : fiducials) {
-                            
-                                 int id = f.getFiducialId();
-                                 if (id == 20 || id == 24) {                                
+                            int id = f.getFiducialId();
+                            if (id == 20 || id == 24) {
                                 double tx = f.getTargetXDegrees();
-                                // optional deadband
-                                if (Math.abs(tx) < 1.0) tx = 0;
-                                turnAssist = Math.max(-0.35, Math.min(0.35, tx * 0.02));
-                                break;
+                                if (bestTx == null || Math.abs(tx) < Math.abs(bestTx)) {
+                                    bestTx = tx;
+                                }
                             }
+                        }
+            
+                        if (bestTx != null) {
+                            double tx = bestTx;
+                            if (Math.abs(tx) < 1.0) tx = 0.0; // deadband
+                            turnAssist = Math.max(-0.35, Math.min(0.35, tx * 0.02));
                         }
                     }
                 }
