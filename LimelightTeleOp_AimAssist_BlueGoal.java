@@ -95,7 +95,7 @@ public class LimelightTeleOp extends LinearOpMode {
 
 
         mFL.setDirection(DcMotor.Direction.FORWARD);
-        mFR.setDirection(DcMotor.Direction.REVERSE  );
+        mFR.setDirection(DcMotor.Direction.REVERSE);
         mBL.setDirection(DcMotor.Direction.FORWARD);
         mBR.setDirection(DcMotor.Direction.REVERSE);
 
@@ -133,8 +133,35 @@ public class LimelightTeleOp extends LinearOpMode {
         while (opModeIsActive()) {
 // DRIVETRAIN
             drive = - gamepad1.left_stick_y;
-            turn = gamepad1.right_stick_x;
+            double turnManual = gamepad1.right_stick_x;
             strafe = gamepad1.left_stick_x;
+
+            // Aim assist overlay (only when held)
+            double turnAssist = 0.0;
+            boolean aimAssistEnabled = gamepad1.left_trigger > 0.2;
+            
+            if (aimAssistEnabled) {
+                LLResult result = limelight.getLatestResult();
+                if (result != null && result.isValid()) {
+                    // Find the tag you care about (example: pick one ID)
+                    int desiredId = 20; // TODO change (Blue goal)
+                    List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
+            
+                    if (fiducials != null) {
+                        for (LLResultTypes.FiducialResult f : fiducials) {
+                            if (f.getFiducialId() == desiredId) {
+                                double tx = f.getTargetXDegrees();
+                                // optional deadband
+                                if (Math.abs(tx) < 1.0) tx = 0;
+                                turnAssist = clamp(tx * 0.02, -0.35, 0.35);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            turn = turnManual + turnAssist;
 
 
             frontLeft = drive + strafe + turn;
